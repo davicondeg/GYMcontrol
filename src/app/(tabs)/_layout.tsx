@@ -23,6 +23,16 @@ function ExercisesIcon({ color }: { color: ColorValue }) {
   );
 }
 
+function OverviewIcon({ color }: { color: ColorValue }) {
+  return (
+    <View style={styles.chart}>
+      <View style={[styles.chartBar, styles.chartBarShort, { backgroundColor: color }]} />
+      <View style={[styles.chartBar, styles.chartBarMedium, { backgroundColor: color }]} />
+      <View style={[styles.chartBar, styles.chartBarTall, { backgroundColor: color }]} />
+    </View>
+  );
+}
+
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
 
@@ -67,6 +77,15 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <ExercisesIcon color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="overview"
+        options={{
+          headerShown: false,
+          title: 'Visão geral',
+          tabBarLabel: 'Visão geral',
+          tabBarIcon: ({ color }) => <OverviewIcon color={color} />,
+        }}
+      />
     </Tabs>
   );
 }
@@ -107,5 +126,26 @@ const styles = StyleSheet.create({
   dumbbellBar: {
     width: 12,
     height: 2,
+  },
+  chart: {
+    width: 22,
+    height: 22,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 2.5,
+  },
+  chartBar: {
+    width: 5,
+    borderRadius: 2,
+  },
+  chartBarShort: {
+    height: 8,
+  },
+  chartBarMedium: {
+    height: 14,
+  },
+  chartBarTall: {
+    height: 20,
   },
 });
