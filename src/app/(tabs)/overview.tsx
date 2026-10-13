@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { WhatsAppConnectionCard } from '@/components/whatsapp-connection-card';
 import type { DailyTracking } from '@/storage/daily-tracking.types';
 import type { HabitCompletion, HabitItem } from '@/storage/habits.types';
 import { createDefaultGoals, type GoalVersion } from '@/storage/goals.types';
@@ -480,6 +481,8 @@ export default function OverviewScreen() {
                 <Text style={styles.insightText}>{metrics.insight}</Text>
               </View>
             </View>
+
+            <WhatsAppConnectionCard />
           </>
         )}
       </ScrollView>
