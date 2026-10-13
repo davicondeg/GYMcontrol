@@ -1,5 +1,4 @@
 import type { Session } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { type PropsWithChildren, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,7 +21,6 @@ import { colors } from '@/theme/colors';
 type Screen = 'protect' | 'confirmation' | 'password' | 'login';
 const PUBLIC_APP_URL = 'https://davicondeg.github.io/GYMcontrol/';
 const PASSWORD_SETUP_URL = `${PUBLIC_APP_URL}?accountSetup=password`;
-const ACCOUNT_SETUP_PENDING_KEY = 'gymcontrol:account-setup-pending';
 
 function isPasswordSetupUrl(url: string | null) {
   if (!url) return false;
@@ -65,14 +63,11 @@ export function AccountGate({ children }: PropsWithChildren) {
       .then(async (currentSession) => {
         if (!active) return;
         setSession(currentSession);
-        const [isSetupPending, initialUrl] = await Promise.all([
-          AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY),
-          Linking.getInitialURL(),
-        ]);
+        const initialUrl = await Linking.getInitialURL();
         if (
           active &&
           !currentSession.user.is_anonymous &&
-          (Boolean(isSetupPending) || isPasswordSetupUrl(initialUrl))
+          isPasswordSetupUrl(initialUrl)
         ) {
           setScreen('password');
         }
@@ -87,11 +82,6 @@ export function AccountGate({ children }: PropsWithChildren) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!active || !nextSession) return;
       setSession(nextSession);
-      if (!nextSession.user.is_anonymous) {
-        void AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY).then((isSetupPending) => {
-          if (active && isSetupPending) setScreen('password');
-        });
-      }
     });
 
     return () => {
@@ -120,7 +110,6 @@ export function AccountGate({ children }: PropsWithChildren) {
       setError(messageFromError(updateError));
     } else {
       setEmail(normalizedEmail);
-      await AsyncStorage.setItem(ACCOUNT_SETUP_PENDING_KEY, normalizedEmail);
       setScreen('confirmation');
     }
     setSubmitting(false);
@@ -166,7 +155,6 @@ export function AccountGate({ children }: PropsWithChildren) {
     if (updateError) {
       setError(messageFromError(updateError));
     } else {
-      await AsyncStorage.removeItem(ACCOUNT_SETUP_PENDING_KEY);
       setPassword('');
       setPasswordConfirmation('');
       setScreen('login');
