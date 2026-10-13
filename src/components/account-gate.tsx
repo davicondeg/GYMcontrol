@@ -4,6 +4,7 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -20,7 +21,18 @@ import { colors } from '@/theme/colors';
 
 type Screen = 'protect' | 'confirmation' | 'password' | 'login';
 const PUBLIC_APP_URL = 'https://davicondeg.github.io/GYMcontrol/';
+const PASSWORD_SETUP_URL = `${PUBLIC_APP_URL}?accountSetup=password`;
 const ACCOUNT_SETUP_PENDING_KEY = 'gymcontrol:account-setup-pending';
+
+function isPasswordSetupUrl(url: string | null) {
+  if (!url) return false;
+
+  try {
+    return new URL(url).searchParams.get('accountSetup') === 'password';
+  } catch {
+    return url.includes('accountSetup=password');
+  }
+}
 
 function messageFromError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
@@ -53,8 +65,17 @@ export function AccountGate({ children }: PropsWithChildren) {
       .then(async (currentSession) => {
         if (!active) return;
         setSession(currentSession);
-        const isSetupPending = await AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY);
-        if (active && !currentSession.user.is_anonymous && isSetupPending) setScreen('password');
+        const [isSetupPending, initialUrl] = await Promise.all([
+          AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY),
+          Linking.getInitialURL(),
+        ]);
+        if (
+          active &&
+          !currentSession.user.is_anonymous &&
+          (Boolean(isSetupPending) || isPasswordSetupUrl(initialUrl))
+        ) {
+          setScreen('password');
+        }
       })
       .catch(() => {
         if (active) setError('Não foi possível iniciar sua sessão.');
@@ -93,7 +114,7 @@ export function AccountGate({ children }: PropsWithChildren) {
 
     const { error: updateError } = await supabase.auth.updateUser(
       { email: normalizedEmail },
-      { emailRedirectTo: PUBLIC_APP_URL },
+      { emailRedirectTo: PASSWORD_SETUP_URL },
     );
     if (updateError) {
       setError(messageFromError(updateError));
