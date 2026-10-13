@@ -134,14 +134,18 @@ export default function TodayScreen() {
 
     setIsSaving(true);
     setError(null);
+    setTracking((current) =>
+      current ? { ...current, water_ml: current.water_ml + amount } : current,
+    );
+    setWaterAdditions((current) => [...current, amount]);
 
     try {
       await storage.changeWater(tracking.date, amount);
-      setTracking((current) =>
-        current ? { ...current, water_ml: current.water_ml + amount } : current,
-      );
-      setWaterAdditions((current) => [...current, amount]);
     } catch {
+      setTracking((current) =>
+        current ? { ...current, water_ml: Math.max(0, current.water_ml - amount) } : current,
+      );
+      setWaterAdditions((current) => current.slice(0, -1));
       setError('Não foi possível atualizar o consumo de água.');
     } finally {
       setIsSaving(false);
@@ -154,14 +158,18 @@ export default function TodayScreen() {
     const amount = waterAdditions[waterAdditions.length - 1];
     setIsSaving(true);
     setError(null);
+    setTracking((current) =>
+      current ? { ...current, water_ml: Math.max(0, current.water_ml - amount) } : current,
+    );
+    setWaterAdditions((current) => current.slice(0, -1));
 
     try {
       await storage.changeWater(tracking.date, -amount);
-      setTracking((current) =>
-        current ? { ...current, water_ml: Math.max(0, current.water_ml - amount) } : current,
-      );
-      setWaterAdditions((current) => current.slice(0, -1));
     } catch {
+      setTracking((current) =>
+        current ? { ...current, water_ml: current.water_ml + amount } : current,
+      );
+      setWaterAdditions((current) => [...current, amount]);
       setError('Não foi possível desfazer a última adição.');
     } finally {
       setIsSaving(false);
