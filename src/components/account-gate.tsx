@@ -1,4 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { type PropsWithChildren, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,9 @@ import { ensureSupabaseSession } from '@/lib/supabase-auth';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/theme/colors';
 
-type Screen = 'choice' | 'protect' | 'confirmation' | 'password' | 'login';
+type Screen = 'protect' | 'confirmation' | 'password' | 'login';
+const PUBLIC_APP_URL = 'https://davicondeg.github.io/GYMcontrol/';
+const ACCOUNT_SETUP_PENDING_KEY = 'gymcontrol:account-setup-pending';
 
 function messageFromError(error: unknown) {
   const message = error instanceof Error ? error.message.toLowerCase() : '';
@@ -35,9 +38,10 @@ function messageFromError(error: unknown) {
 
 export function AccountGate({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
-  const [screen, setScreen] = useState<Screen>('choice');
+  const [screen, setScreen] = useState<Screen>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +50,11 @@ export function AccountGate({ children }: PropsWithChildren) {
     let active = true;
 
     void ensureSupabaseSession()
-      .then((currentSession) => {
-        if (active) setSession(currentSession);
+      .then(async (currentSession) => {
+        if (!active) return;
+        setSession(currentSession);
+        const isSetupPending = await AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY);
+        if (active && !currentSession.user.is_anonymous && isSetupPending) setScreen('password');
       })
       .catch(() => {
         if (active) setError('Não foi possível iniciar sua sessão.');
@@ -57,7 +64,13 @@ export function AccountGate({ children }: PropsWithChildren) {
       });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (active && nextSession) setSession(nextSession);
+      if (!active || !nextSession) return;
+      setSession(nextSession);
+      if (!nextSession.user.is_anonymous) {
+        void AsyncStorage.getItem(ACCOUNT_SETUP_PENDING_KEY).then((isSetupPending) => {
+          if (active && isSetupPending) setScreen('password');
+        });
+      }
     });
 
     return () => {
@@ -69,13 +82,26 @@ export function AccountGate({ children }: PropsWithChildren) {
   const isPermanent = Boolean(session && !session.user.is_anonymous);
 
   const sendConfirmation = async () => {
-    if (!email.trim() || submitting) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (submitting) return;
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      setError('Informe um endereço de e-mail válido.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
-    const { error: updateError } = await supabase.auth.updateUser({ email: email.trim() });
-    if (updateError) setError(messageFromError(updateError));
-    else setScreen('confirmation');
+    const { error: updateError } = await supabase.auth.updateUser(
+      { email: normalizedEmail },
+      { emailRedirectTo: PUBLIC_APP_URL },
+    );
+    if (updateError) {
+      setError(messageFromError(updateError));
+    } else {
+      setEmail(normalizedEmail);
+      await AsyncStorage.setItem(ACCOUNT_SETUP_PENDING_KEY, normalizedEmail);
+      setScreen('confirmation');
+    }
     setSubmitting(false);
   };
 
@@ -102,11 +128,28 @@ export function AccountGate({ children }: PropsWithChildren) {
       setError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
+    if (password !== passwordConfirmation) {
+      setError('As senhas informadas não são iguais.');
+      return;
+    }
     setSubmitting(true);
     setError(null);
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user || userData.user.is_anonymous) {
+      setError('Confirme seu e-mail antes de criar a senha.');
+      setSubmitting(false);
+      return;
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({ password });
-    if (updateError) setError(messageFromError(updateError));
-    else setScreen('choice');
+    if (updateError) {
+      setError(messageFromError(updateError));
+    } else {
+      await AsyncStorage.removeItem(ACCOUNT_SETUP_PENDING_KEY);
+      setPassword('');
+      setPasswordConfirmation('');
+      setScreen('login');
+    }
     setSubmitting(false);
   };
 
@@ -144,32 +187,18 @@ export function AccountGate({ children }: PropsWithChildren) {
           <View style={styles.heading}>
             <Text style={styles.eyebrow}>GYMCONTROL</Text>
             <Text style={styles.title}>
-              {screen === 'choice' && 'Seus dados, na sua conta'}
-              {screen === 'protect' && 'Proteja seus dados'}
+              {screen === 'protect' && 'Crie sua conta'}
               {screen === 'confirmation' && 'Confirme seu e-mail'}
               {screen === 'password' && 'Crie sua senha'}
               {screen === 'login' && 'Entre na sua conta'}
             </Text>
             <Text style={styles.subtitle}>
-              {screen === 'choice' && 'Crie um acesso permanente para usar seus registros em qualquer dispositivo.'}
-              {screen === 'protect' && 'Você continuará com todo o histórico que já registrou neste dispositivo.'}
+              {screen === 'protect' && 'Cadastre seu e-mail sem perder o histórico que já registrou.'}
               {screen === 'confirmation' && `Enviamos um link para ${email}. Abra-o e volte para continuar.`}
               {screen === 'password' && 'Escolha uma senha para acessar esta conta em outros dispositivos.'}
               {screen === 'login' && 'Use os mesmos dados cadastrados anteriormente.'}
             </Text>
           </View>
-
-          {screen === 'choice' ? (
-            <View style={styles.actions}>
-              <Pressable onPress={() => { setError(null); setScreen('protect'); }} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Proteger meus dados</Text>
-              </Pressable>
-              <Pressable onPress={() => { setError(null); setScreen('login'); }} style={styles.secondaryButton}>
-                <Text style={styles.secondaryButtonText}>Já tenho uma conta</Text>
-              </Pressable>
-              <Text style={styles.note}>Nenhum registro atual será apagado ao criar sua conta.</Text>
-            </View>
-          ) : null}
 
           {screen === 'protect' || screen === 'login' ? (
             <View style={styles.form}>
@@ -203,10 +232,18 @@ export function AccountGate({ children }: PropsWithChildren) {
               <Pressable disabled={submitting} onPress={() => void (screen === 'login' ? signIn() : sendConfirmation())} style={[styles.primaryButton, submitting && styles.disabled]}>
                 <Text style={styles.primaryButtonText}>{submitting ? 'Aguarde...' : screen === 'login' ? 'Entrar' : 'Continuar'}</Text>
               </Pressable>
-              <Pressable onPress={() => { setError(null); setScreen('choice'); }} style={styles.backButton}>
-                <Text style={styles.backText}>Voltar</Text>
-              </Pressable>
-              {screen === 'login' ? <Text style={styles.warning}>Ao entrar em outra conta, os dados anônimos deste dispositivo não serão adicionados a ela.</Text> : null}
+              {screen === 'login' ? (
+                <>
+                  <Pressable onPress={() => { setError(null); setPassword(''); setScreen('protect'); }} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>Criar minha conta</Text>
+                  </Pressable>
+                  <Text style={styles.note}>Ao criar sua conta, os registros atuais deste dispositivo serão mantidos.</Text>
+                </>
+              ) : (
+                <Pressable onPress={() => { setError(null); setScreen('login'); }} style={styles.backButton}>
+                  <Text style={styles.backText}>Voltar para entrar</Text>
+                </Pressable>
+              )}
             </View>
           ) : null}
 
@@ -226,6 +263,8 @@ export function AccountGate({ children }: PropsWithChildren) {
             <View style={styles.form}>
               <Text style={styles.label}>Nova senha</Text>
               <TextInput autoCapitalize="none" autoComplete="new-password" onChangeText={setPassword} placeholder="Mínimo de 6 caracteres" placeholderTextColor="#656B70" secureTextEntry style={styles.input} value={password} />
+              <Text style={styles.label}>Confirme a nova senha</Text>
+              <TextInput autoCapitalize="none" autoComplete="new-password" onChangeText={setPasswordConfirmation} placeholder="Digite a senha novamente" placeholderTextColor="#656B70" secureTextEntry style={styles.input} value={passwordConfirmation} />
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <Pressable disabled={submitting} onPress={() => void savePassword()} style={styles.primaryButton}>
                 <Text style={styles.primaryButtonText}>{submitting ? 'Salvando...' : 'Salvar e acessar'}</Text>
@@ -260,7 +299,6 @@ const styles = StyleSheet.create({
   backButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   backText: { color: colors.textSecondary, fontSize: 14, fontWeight: '800' },
   note: { marginTop: 4, color: colors.textSecondary, textAlign: 'center', fontSize: 12, lineHeight: 18 },
-  warning: { color: '#D7A65B', textAlign: 'center', fontSize: 12, lineHeight: 18 },
   error: { color: '#FFB4B7', fontSize: 12, lineHeight: 18 },
   disabled: { opacity: 0.55 },
 });
