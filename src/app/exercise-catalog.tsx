@@ -12,12 +12,11 @@ export default function ExerciseCatalogScreen() {
   const { workoutId } = useLocalSearchParams<{ workoutId?: string }>();
   const [query, setQuery] = useState('');
   const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
+    if (workoutId) {
+      router.dismissTo({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } else {
+      router.dismissTo('/exercises');
     }
-
-    router.replace('/exercises');
   };
   const exercises = catalogExercises
     .filter((exercise) => matchesExerciseSearch(exercise, query))

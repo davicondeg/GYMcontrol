@@ -50,7 +50,7 @@ export default function ExercisesScreen() {
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Exercícios</Text>
+          <Text style={styles.title}>Treinos</Text>
           <Text style={styles.subtitle}>Selecione um treino para ver seus exercícios.</Text>
         </View>
 

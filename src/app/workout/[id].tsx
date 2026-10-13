@@ -34,7 +34,7 @@ export default function WorkoutScreen() {
     void load();
   }, [load]);
 
-  const goBack = () => router.canGoBack() ? router.back() : router.replace('/exercises');
+  const goBack = () => router.dismissTo('/exercises');
   const removeExercise = async (exerciseId: number) => {
     if (removingId !== null) return;
     setRemovingId(exerciseId);
@@ -62,7 +62,7 @@ export default function WorkoutScreen() {
         const catalog = resolveCatalogExercise(exercise.catalog_id, exercise.name);
         return <View key={exercise.id} style={styles.card}>
           <ExerciseArtwork image={catalog?.image} />
-          <Pressable onPress={() => router.push({ pathname: '/my-exercise/[id]', params: { id: exercise.id } })} style={styles.content}>
+          <Pressable onPress={() => router.push({ pathname: '/my-exercise/[id]', params: { id: exercise.id, workoutId } })} style={styles.content}>
             <Text style={styles.name}>{exercise.name}</Text><Text style={styles.load}>{exercise.personal_load || 'Carga não informada'}</Text>
           </Pressable>
           <Pressable disabled={removingId !== null} onPress={() => void removeExercise(exercise.id)} style={styles.removeButton}>

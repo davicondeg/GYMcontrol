@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { Platform } from 'react-native';
 
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 8;
 
 type UserVersionResult = {
   user_version: number;
@@ -287,6 +287,35 @@ export async function migrateDatabase(database: SQLiteDatabase) {
         RENAME TO workout_exercises;
 
         PRAGMA user_version = 7;
+      `);
+    });
+
+    currentVersion = 7;
+  }
+
+  if (currentVersion === 7) {
+    await runMigrationTransaction(database, async (transaction) => {
+      await transaction.execAsync(`
+        CREATE TABLE workout_sessions (
+          key TEXT PRIMARY KEY NOT NULL,
+          workout_id INTEGER NOT NULL,
+          date TEXT NOT NULL,
+          completed_at TEXT NOT NULL,
+          FOREIGN KEY (workout_id) REFERENCES workouts(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX workout_sessions_date_idx ON workout_sessions(date);
+
+        CREATE TABLE goal_versions (
+          effective_from TEXT PRIMARY KEY NOT NULL,
+          workout_target_weekly INTEGER NOT NULL CHECK (workout_target_weekly BETWEEN 0 AND 14),
+          water_goal_ml INTEGER NOT NULL CHECK (water_goal_ml BETWEEN 0 AND 10000),
+          meal_target_daily INTEGER NOT NULL CHECK (meal_target_daily BETWEEN 0 AND 20),
+          supplement_target_daily INTEGER NOT NULL CHECK (supplement_target_daily BETWEEN 0 AND 20),
+          created_at TEXT NOT NULL
+        );
+
+        PRAGMA user_version = 8;
       `);
     });
   }

@@ -16,6 +16,7 @@ export type DailyTracking = Record<CompletionColumn, number> & {
 
 export type DailyTrackingStorage = {
   getOrCreate(date: string): Promise<DailyTracking>;
+  listBetween(startDate: string, endDate: string): Promise<DailyTracking[]>;
   changeWater(date: string, amount: number): Promise<void>;
   setCompletion(date: string, column: CompletionColumn, value: number): Promise<void>;
 };

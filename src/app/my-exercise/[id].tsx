@@ -21,7 +21,7 @@ import { usePersonalExercisesStorage } from '@/storage/use-personal-exercises-st
 import { colors } from '@/theme/colors';
 
 export default function PersonalExerciseScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, workoutId } = useLocalSearchParams<{ id: string; workoutId?: string }>();
   const router = useRouter();
   const storage = usePersonalExercisesStorage();
   const exerciseId = Number(id);
@@ -32,12 +32,11 @@ export default function PersonalExerciseScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const goBack = () => {
-    if (router.canGoBack()) {
-      router.back();
-      return;
+    if (workoutId) {
+      router.dismissTo({ pathname: '/workout/[id]', params: { id: workoutId } });
+    } else {
+      router.dismissTo('/exercises');
     }
-
-    router.replace('/exercises');
   };
 
   const loadExercise = useCallback(async () => {

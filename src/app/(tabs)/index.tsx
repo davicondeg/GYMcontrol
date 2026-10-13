@@ -17,6 +17,8 @@ import { useDailyTrackingStorage } from '@/storage/use-daily-tracking-storage';
 import { useHabitsStorage } from '@/storage/use-habits-storage';
 import { getWaterIncrements } from '@/storage/water-settings.types';
 import { useWaterSettingsStorage } from '@/storage/use-water-settings-storage';
+import { useWorkoutsStorage } from '@/storage/use-workouts-storage';
+import type { WorkoutSummary } from '@/storage/workouts.types';
 import { colors } from '@/theme/colors';
 
 const WATER_GOAL_ML = 3000;
@@ -75,6 +77,7 @@ export default function TodayScreen() {
   const storage = useDailyTrackingStorage();
   const habitsStorage = useHabitsStorage();
   const waterSettingsStorage = useWaterSettingsStorage();
+  const workoutsStorage = useWorkoutsStorage();
   const [tracking, setTracking] = useState<DailyTracking | null>(null);
   const [waterIncrements, setWaterIncrements] = useState<[number, number, number]>([
     500, 800, 1000,
@@ -86,17 +89,22 @@ export default function TodayScreen() {
   const [habitDrafts, setHabitDrafts] = useState<EditableHabitItem[]>([]);
   const [customizingHabit, setCustomizingHabit] = useState<'meals' | 'supplements' | null>(null);
   const [waterAdditions, setWaterAdditions] = useState<number[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
+  const [completedWorkoutIds, setCompletedWorkoutIds] = useState<Set<number>>(new Set());
+  const [updatingWorkoutId, setUpdatingWorkoutId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadToday = useCallback(async () => {
     try {
       const date = getLocalDateKey();
-      const [result, waterSettings, items, completions] = await Promise.all([
+      const [result, waterSettings, items, completions, workoutItems, workoutSessions] = await Promise.all([
         storage.getOrCreate(date),
         waterSettingsStorage.get(),
         habitsStorage.listItems(),
         habitsStorage.listCompletions(date),
+        workoutsStorage.list(),
+        workoutsStorage.listSessionsBetween(date, date),
       ]);
 
       setTracking(result);
@@ -107,11 +115,13 @@ export default function TodayScreen() {
       setHabitCompletions(
         Object.fromEntries(completions.map((completion) => [completion.habit_id, completion.done])),
       );
+      setWorkouts(workoutItems);
+      setCompletedWorkoutIds(new Set(workoutSessions.map((session) => session.workout_id)));
       setWaterAdditions([]);
     } catch {
       setError('Não foi possível carregar os dados de hoje.');
     }
-  }, [habitsStorage, storage, waterSettingsStorage]);
+  }, [habitsStorage, storage, waterSettingsStorage, workoutsStorage]);
 
   useEffect(() => {
     // SQLite is an external data source; loadToday updates state after its asynchronous read.
@@ -172,6 +182,26 @@ export default function TodayScreen() {
       setError('Não foi possível atualizar o item.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const toggleWorkout = async (workout: WorkoutSummary) => {
+    if (!tracking || updatingWorkoutId !== null) return;
+    const nextValue = !completedWorkoutIds.has(workout.id);
+    setUpdatingWorkoutId(workout.id);
+    setError(null);
+    try {
+      await workoutsStorage.setCompletedOn(workout.id, tracking.date, nextValue);
+      setCompletedWorkoutIds((current) => {
+        const next = new Set(current);
+        if (nextValue) next.add(workout.id);
+        else next.delete(workout.id);
+        return next;
+      });
+    } catch {
+      setError('Não foi possível atualizar o treino de hoje.');
+    } finally {
+      setUpdatingWorkoutId(null);
     }
   };
 
@@ -300,6 +330,7 @@ export default function TodayScreen() {
   const completedSupplements = supplementItems.filter(
     (item) => habitCompletions[item.id] === 1,
   ).length;
+  const completedWorkouts = workouts.filter((workout) => completedWorkoutIds.has(workout.id)).length;
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -536,6 +567,35 @@ export default function TodayScreen() {
         <View style={[styles.card, styles.compactCard]}>
           <View style={[styles.cardHeader, styles.compactCardHeader]}>
             <View>
+              <Text style={styles.sectionTitle}>Treino de hoje</Text>
+              <Text style={styles.workoutSectionHint}>Marque os treinos realizados hoje.</Text>
+            </View>
+            <Text style={styles.counter}>{completedWorkouts}/{workouts.length}</Text>
+          </View>
+
+          {workouts.length > 0 ? (
+            <View style={styles.checkList}>
+              {workouts.map((workout, index) => (
+                <CheckItem
+                  checked={completedWorkoutIds.has(workout.id)}
+                  disabled={updatingWorkoutId !== null}
+                  isLast={index === workouts.length - 1}
+                  key={workout.id}
+                  label={workout.name}
+                  onPress={() => void toggleWorkout(workout)}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.emptyWorkoutText}>
+              Crie um treino na aba Treinos para registrá-lo aqui.
+            </Text>
+          )}
+        </View>
+
+        <View style={[styles.card, styles.compactCard]}>
+          <View style={[styles.cardHeader, styles.compactCardHeader]}>
+            <View>
               <Text style={styles.sectionTitle}>Alimentação</Text>
               <Pressable
                 accessibilityRole="button"
@@ -698,6 +758,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '700',
+  },
+  workoutSectionHint: {
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontSize: 11,
+  },
+  emptyWorkoutText: {
+    color: colors.textSecondary,
+    paddingVertical: 12,
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 18,
   },
   waterPercentage: {
     color: colors.water,

@@ -20,6 +20,7 @@ export type EditableHabitItem = Pick<HabitItem, 'id' | 'label'>;
 export type HabitsStorage = {
   listItems(): Promise<HabitItem[]>;
   listCompletions(date: string): Promise<HabitCompletion[]>;
+  listCompletionsBetween(startDate: string, endDate: string): Promise<HabitCompletion[]>;
   setCompletion(date: string, habitId: string, done: number): Promise<void>;
   saveItems(type: HabitType, items: EditableHabitItem[]): Promise<HabitItem[]>;
 };

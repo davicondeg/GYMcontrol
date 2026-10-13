@@ -4,9 +4,10 @@ import type { DailyTracking } from '@/storage/daily-tracking.types';
 import type { HabitLabelSettings } from '@/storage/habit-label-settings.types';
 import { createDefaultHabitLabelSettings } from '@/storage/habit-label-settings.types';
 import type { HabitCompletion, HabitItem, HabitType } from '@/storage/habits.types';
+import type { GoalVersion } from '@/storage/goals.types';
 import type { PersonalExercise } from '@/storage/personal-exercises.types';
 import type { WaterSettings } from '@/storage/water-settings.types';
-import type { Workout } from '@/storage/workouts.types';
+import type { Workout, WorkoutSession } from '@/storage/workouts.types';
 
 export type StoredPersonalExercise = Omit<PersonalExercise, 'id'> & { id?: number };
 
@@ -44,9 +45,18 @@ interface GymcontrolDatabase extends DBSchema {
     value: { key: string; workout_id: number; personal_exercise_id: number; position: number };
     indexes: { workout_id: number; personal_exercise_id: number };
   };
+  workout_sessions: {
+    key: string;
+    value: WorkoutSession;
+    indexes: { date: string; workout_id: number };
+  };
+  goal_versions: {
+    key: string;
+    value: GoalVersion;
+  };
 }
 
-export const webDatabasePromise = openDB<GymcontrolDatabase>('gymcontrol', 7, {
+export const webDatabasePromise = openDB<GymcontrolDatabase>('gymcontrol', 8, {
   async upgrade(database, oldVersion, _newVersion, transaction) {
     if (!database.objectStoreNames.contains('daily_tracking')) {
       database.createObjectStore('daily_tracking', { keyPath: 'date' });
@@ -101,6 +111,16 @@ export const webDatabasePromise = openDB<GymcontrolDatabase>('gymcontrol', 7, {
       }
       store.deleteIndex('personal_exercise_id');
       store.createIndex('personal_exercise_id', 'personal_exercise_id', { unique: true });
+    }
+
+    if (!database.objectStoreNames.contains('workout_sessions')) {
+      const store = database.createObjectStore('workout_sessions', { keyPath: 'key' });
+      store.createIndex('date', 'date');
+      store.createIndex('workout_id', 'workout_id');
+    }
+
+    if (!database.objectStoreNames.contains('goal_versions')) {
+      database.createObjectStore('goal_versions', { keyPath: 'effective_from' });
     }
 
     if (oldVersion < 5) {

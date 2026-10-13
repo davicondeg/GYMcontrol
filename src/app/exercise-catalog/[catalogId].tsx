@@ -32,10 +32,12 @@ export default function AddCatalogExerciseScreen() {
   const goBack = () => {
     if (router.canGoBack()) {
       router.back();
-      return;
+    } else {
+      router.replace({
+        pathname: '/exercise-catalog',
+        params: workoutId ? { workoutId } : {},
+      });
     }
-
-    router.replace('/exercise-catalog');
   };
 
   if (!exercise) {
@@ -59,7 +61,7 @@ export default function AddCatalogExerciseScreen() {
 
       if (workoutId) {
         await workoutsStorage.addExercise(Number(workoutId), result.exercise.id);
-        router.replace({ pathname: '/workout/[id]', params: { id: workoutId } });
+        router.dismissTo({ pathname: '/workout/[id]', params: { id: workoutId } });
         return;
       }
 
@@ -68,7 +70,7 @@ export default function AddCatalogExerciseScreen() {
         return;
       }
 
-      router.replace('/exercises');
+      router.dismissTo('/exercises');
     } catch {
       setMessage('Não foi possível adicionar o exercício.');
     } finally {
