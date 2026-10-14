@@ -28,6 +28,7 @@ const supabase = createClient(
 );
 
 const tables = [
+  'profiles',
   'daily_tracking',
   'personal_exercises',
   'water_settings',
@@ -37,6 +38,12 @@ const tables = [
   'workout_exercises',
   'workout_sessions',
   'goal_versions',
+  'finance_categories',
+  'finance_accounts',
+  'finance_transactions',
+  'finance_credit_purchases',
+  'finance_installments',
+  'finance_recurring_transactions',
 ];
 
 const { error: loginError } = await supabase.auth.signInAnonymously();

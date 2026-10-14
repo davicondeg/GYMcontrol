@@ -1,0 +1,1809 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gestor Financeiro | Dashboard</title>
+    <meta
+      name="description"
+      content="Dashboard do Gestor Financeiro para acompanhar receitas, despesas, contas e cartões."
+    >
+    <link rel="stylesheet" href="../styles/dashboard.css">
+  </head>
+  <body>
+    <div class="dashboard-watermark" aria-hidden="true">
+      <svg viewBox="0 0 1440 900" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="dashLine" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#1A365D" stop-opacity="0.10"></stop>
+            <stop offset="100%" stop-color="#1DB954" stop-opacity="0.12"></stop>
+          </linearGradient>
+        </defs>
+        <path d="M-40 680 C 160 610, 280 710, 460 620 S 760 510, 920 560 S 1180 470, 1480 310" fill="none" stroke="url(#dashLine)" stroke-width="3"></path>
+        <path d="M40 760 C 240 680, 340 760, 520 690 S 820 560, 1000 620 S 1260 540, 1460 390" fill="none" stroke="#1A365D" stroke-opacity="0.06" stroke-width="2"></path>
+        <g fill="#1A365D" fill-opacity="0.1">
+          <circle cx="220" cy="640" r="6"></circle>
+          <circle cx="460" cy="620" r="6"></circle>
+          <circle cx="760" cy="520" r="6"></circle>
+          <circle cx="980" cy="560" r="6"></circle>
+          <circle cx="1190" cy="470" r="6"></circle>
+        </g>
+      </svg>
+    </div>
+
+    <main class="dashboard-shell">
+      <header class="dashboard-topbar">
+        <div class="brand-lockup">
+          <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <rect x="8" y="34" width="10" height="16" rx="2"></rect>
+              <rect x="22" y="26" width="10" height="24" rx="2"></rect>
+              <rect x="36" y="18" width="10" height="32" rx="2"></rect>
+              <path d="M13 30 L25 22 L37 26 L51 11" fill="none"></path>
+              <path d="M51 11 L46 12 L49 16" fill="none"></path>
+            </svg>
+          </div>
+
+          <div class="brand-text">
+            <p class="brand-kicker">Painel principal</p>
+            <h1>Gestor Financeiro</h1>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="profile-menu">
+            <button
+              class="user-pill user-pill--button"
+              id="profile-menu-button"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+            >
+              <span class="user-avatar" id="dashboard-user-avatar" aria-hidden="true">
+                <img class="user-avatar__image" id="dashboard-user-avatar-image" alt="" hidden>
+                <span class="user-avatar__fallback" id="dashboard-user-avatar-fallback">US</span>
+              </span>
+              <strong id="dashboard-user">Olá, Usuário</strong>
+            </button>
+
+            <div class="profile-dropdown" id="profile-dropdown" role="menu" hidden>
+              <button class="profile-dropdown__item" id="profile-dropdown-open" type="button" role="menuitem">
+                Meu perfil
+              </button>
+              <button class="profile-dropdown__item" id="profile-dropdown-settings" type="button" role="menuitem">
+                Configurações
+              </button>
+            </div>
+          </div>
+          <button class="logout-button" id="logout-button" type="button">Sair</button>
+        </div>
+      </header>
+
+      <nav class="dashboard-nav" aria-label="Menu principal">
+        <div class="dashboard-nav__items">
+          <button
+            class="dashboard-nav__item is-active"
+            type="button"
+            data-dashboard-nav="dashboard"
+            aria-current="page"
+          >
+            Dashboard
+          </button>
+          <button class="dashboard-nav__item" type="button" data-dashboard-nav="transactions">
+            Transações
+          </button>
+          <button class="dashboard-nav__item" type="button" data-dashboard-nav="recurrences">
+            Recorrências
+          </button>
+          <button class="dashboard-nav__item" type="button" data-dashboard-nav="cards">
+            Cartões
+          </button>
+          <button class="dashboard-nav__item" type="button" data-dashboard-nav="reports">
+            Relatórios
+          </button>
+          <button class="dashboard-nav__item" type="button" data-dashboard-nav="categories">
+            Categorias
+          </button>
+        </div>
+        <p class="dashboard-nav__feedback" id="dashboard-nav-feedback" aria-live="polite"></p>
+      </nav>
+
+      <section class="dashboard-view is-active" id="dashboard-view" data-dashboard-view="dashboard">
+        <section class="hero-card">
+          <div class="hero-copy">
+            <p class="section-label">Visão geral</p>
+            <h2>Controle financeiro com clareza e ritmo de crescimento.</h2>
+            <p>
+              A base visual já está pronta para receber gráficos, filtros e integração com Supabase no futuro.
+            </p>
+          </div>
+
+          <div class="hero-actions">
+            <button class="primary-action" id="btnAddTransaction" type="button">Adicionar transação</button>
+            <p>Fluxo inicial sem modal complexo.</p>
+          </div>
+        </section>
+
+        <section class="kpi-grid" id="kpi-grid" aria-label="Indicadores principais"></section>
+
+        <section class="content-grid">
+          <article class="dashboard-card transactions-card" id="transactions-section">
+            <div class="card-head">
+              <div class="card-head-main">
+                <div class="card-head-copy">
+                  <p class="section-label">Transações recentes</p>
+                  <h2>Últimos lançamentos</h2>
+                </div>
+                <div class="transaction-filters" role="toolbar" aria-label="Filtrar transações">
+                  <button
+                    class="filter-toggle filter-toggle--all is-active"
+                    type="button"
+                    data-transaction-filter="all"
+                    aria-pressed="true"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--receita"
+                    type="button"
+                    data-transaction-filter="receita"
+                    aria-pressed="false"
+                  >
+                    Receitas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--despesa"
+                    type="button"
+                    data-transaction-filter="despesa"
+                    aria-pressed="false"
+                  >
+                    Despesas
+                  </button>
+                </div>
+              </div>
+              <span class="card-chip">Dados locais</span>
+            </div>
+
+            <ul class="transaction-list" id="transaction-list" aria-label="Lista de transações recentes"></ul>
+          </article>
+
+          <aside class="dashboard-card summary-card">
+            <p class="section-label">Estrutura base</p>
+            <h2>Pronto para evoluir</h2>
+            <p>
+              O dashboard já está organizado para crescer com componentes, filtros, relatórios e autenticação real.
+            </p>
+
+            <div class="summary-highlight">
+              <span>Fluxo atual</span>
+              <strong>Login fake + dashboard local</strong>
+            </div>
+
+            <div class="summary-highlight muted">
+              <span>Próximo passo</span>
+              <strong>Adicionar Supabase, filtros e gráficos</strong>
+            </div>
+          </aside>
+        </section>
+      </section>
+
+      <section
+        class="dashboard-view transactions-view"
+        id="transactions-view"
+        data-dashboard-view="transactions"
+        hidden
+      >
+        <section class="dashboard-card module-hero">
+          <div class="module-hero__copy">
+            <p class="section-label">Módulo financeiro</p>
+            <h2>Transações</h2>
+            <p>Gerencie suas receitas e despesas em um só lugar.</p>
+          </div>
+
+          <div class="module-hero__action">
+            <button class="primary-action" id="btnAddTransactionModule" type="button">
+              Adicionar transação
+            </button>
+          </div>
+        </section>
+
+        <section
+          class="transactions-summary-grid"
+          id="transactions-summary-grid"
+          aria-label="Resumo da área de transações"
+        ></section>
+
+        <section class="dashboard-card transactions-workspace" aria-labelledby="transactions-area-title">
+          <div class="card-head">
+            <div class="card-head-copy">
+              <p class="section-label">Visão detalhada</p>
+              <h2 id="transactions-area-title">Todas as movimentações</h2>
+            </div>
+            <span class="card-chip">Interface inicial</span>
+          </div>
+
+          <div class="transactions-filters-panel">
+            <div class="transactions-filters-grid">
+              <div class="filter-group">
+                <p class="filter-group__label">Tipo</p>
+                <div class="transaction-filters" role="toolbar" aria-label="Filtrar transações por tipo">
+                  <button
+                    class="filter-toggle filter-toggle--all is-active"
+                    type="button"
+                    id="transactions-type-filter"
+                    data-module-type-filter="all"
+                    aria-pressed="true"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--receita"
+                    type="button"
+                    data-module-type-filter="receita"
+                    aria-pressed="false"
+                  >
+                    Receitas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--despesa"
+                    type="button"
+                    data-module-type-filter="despesa"
+                    aria-pressed="false"
+                  >
+                    Despesas
+                  </button>
+                </div>
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-group__label" for="transactions-period-filter">Período</label>
+                <select class="filter-select" id="transactions-period-filter" name="transactions-period-filter">
+                  <option value="month">Este mês</option>
+                  <option value="last30">Últimos 30 dias</option>
+                  <option value="year">Este ano</option>
+                  <option value="custom">Personalizado em breve</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-group__label" for="transactions-category-filter">Categoria</label>
+                <select
+                  class="filter-select"
+                  id="transactions-category-filter"
+                  name="transactions-category-filter"
+                >
+                  <option value="all">Todas</option>
+                </select>
+              </div>
+
+              <div class="filter-group filter-group--search">
+                <label class="filter-group__label" for="transactions-search-filter">Busca</label>
+                <input
+                  class="filter-input"
+                  id="transactions-search-filter"
+                  name="transactions-search-filter"
+                  type="search"
+                  placeholder="Buscar por descrição"
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="transactions-table-panel">
+            <div class="transactions-table-wrap" id="transactions-table-wrap">
+              <table class="transactions-table" aria-label="Tabela de transações">
+                <thead>
+                  <tr>
+                    <th scope="col">Data</th>
+                    <th scope="col">Descrição</th>
+                    <th scope="col">Categoria</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="transactions-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="empty-state" id="transactions-empty-state" hidden>
+              <strong>Nenhuma transação cadastrada ainda.</strong>
+              <span>Clique em "Adicionar transação" para registrar sua primeira movimentação.</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section
+        class="dashboard-view recurrences-view"
+        id="recurrences-view"
+        data-dashboard-view="recurrences"
+        hidden
+      >
+        <section class="dashboard-card module-hero">
+          <div class="module-hero__copy">
+            <p class="section-label">Módulo recorrente</p>
+            <h2>Recorrências</h2>
+            <p>Gerencie receitas e despesas fixas que se repetem todos os meses.</p>
+          </div>
+
+          <div class="module-hero__action">
+            <button class="primary-action" id="btnAddRecurrence" type="button">
+              Nova recorrência
+            </button>
+          </div>
+        </section>
+
+        <section
+          class="transactions-summary-grid"
+          id="recurrences-summary-grid"
+          aria-label="Resumo da área de recorrências"
+        ></section>
+
+        <section class="dashboard-card transactions-workspace" aria-labelledby="recurrences-area-title">
+          <div class="card-head">
+            <div class="card-head-copy">
+              <p class="section-label">Planejamento mensal</p>
+              <h2 id="recurrences-area-title">Receitas e despesas fixas</h2>
+            </div>
+            <span class="card-chip">Fluxo visual inicial</span>
+          </div>
+
+          <div class="transactions-filters-panel">
+            <div class="transactions-filters-grid recurrences-filters-grid">
+              <div class="filter-group">
+                <p class="filter-group__label">Filtros</p>
+                <div class="transaction-filters" role="toolbar" aria-label="Filtrar recorrências">
+                  <button
+                    class="filter-toggle filter-toggle--all is-active"
+                    type="button"
+                    data-recurrence-filter="all"
+                    aria-pressed="true"
+                  >
+                    Todas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--receita"
+                    type="button"
+                    data-recurrence-filter="receita"
+                    aria-pressed="false"
+                  >
+                    Receitas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--despesa"
+                    type="button"
+                    data-recurrence-filter="despesa"
+                    aria-pressed="false"
+                  >
+                    Despesas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--all"
+                    type="button"
+                    data-recurrence-filter="active"
+                    aria-pressed="false"
+                  >
+                    Ativas
+                  </button>
+                  <button
+                    class="filter-toggle filter-toggle--all"
+                    type="button"
+                    data-recurrence-filter="paused"
+                    aria-pressed="false"
+                  >
+                    Pausadas
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="transactions-table-panel">
+            <div class="transactions-table-wrap" id="recurrences-table-wrap">
+              <table class="transactions-table" aria-label="Tabela de recorrências">
+                <thead>
+                  <tr>
+                    <th scope="col">Descrição</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Categoria</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Frequência</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="recurrences-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="empty-state" id="recurrences-empty-state" hidden>
+              <strong>Nenhuma recorrência cadastrada ainda.</strong>
+              <span>Clique em "Nova recorrência" para automatizar uma receita ou despesa fixa.</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section
+        class="dashboard-view cards-view"
+        id="cards-view"
+        data-dashboard-view="cards"
+        hidden
+      >
+        <section class="dashboard-card module-hero">
+          <div class="module-hero__copy">
+            <p class="section-label">Módulo de crédito</p>
+            <h2>Cartões</h2>
+            <p>Acompanhe limite, fatura atual e impacto das compras parceladas mês a mês.</p>
+          </div>
+
+          <div class="module-hero__action">
+            <button class="primary-action" id="btnAddCard" type="button">
+              Novo cartão
+            </button>
+          </div>
+        </section>
+
+        <section class="content-grid cards-content-grid">
+          <article class="dashboard-card cards-panel">
+            <div class="card-head">
+              <div class="card-head-copy">
+                <p class="section-label">Seus cartões</p>
+                <h2>Lista de cartões</h2>
+              </div>
+              <span class="card-chip">Estrutura local</span>
+            </div>
+
+            <div class="cards-list" id="cards-list"></div>
+
+            <div class="empty-state" id="cards-empty-state" hidden>
+              <strong>Nenhum cartão cadastrado ainda.</strong>
+              <span>Clique em "Novo cartão" para começar a organizar suas faturas.</span>
+            </div>
+          </article>
+
+          <aside class="dashboard-card cards-summary-panel">
+            <div class="card-head">
+              <div class="card-head-copy">
+                <p class="section-label">Fatura atual</p>
+                <h2 id="current-card-title">Selecione um cartão</h2>
+              </div>
+              <span class="card-chip" id="current-invoice-status">Sem fatura</span>
+            </div>
+
+            <div class="invoice-highlight" id="current-invoice-highlight">
+              <span>Total da fatura</span>
+              <strong>R$ 0,00</strong>
+              <small>As compras no crédito entram aqui mês a mês.</small>
+            </div>
+
+            <button
+              class="modal-button modal-button--primary"
+              id="mark-invoice-paid-button"
+              type="button"
+            >
+              Marcar fatura como paga
+            </button>
+
+            <div class="invoice-list" id="current-invoice-list"></div>
+
+            <div class="empty-state" id="current-invoice-empty-state" hidden>
+              <strong>Nenhuma fatura atual encontrada.</strong>
+              <span>As parcelas do mês selecionado aparecerão aqui.</span>
+            </div>
+          </aside>
+        </section>
+
+        <section class="dashboard-card cards-workspace" aria-labelledby="future-invoices-title">
+          <div class="card-head">
+            <div class="card-head-copy">
+              <p class="section-label">Planejamento de crédito</p>
+              <h2 id="future-invoices-title">Faturas futuras</h2>
+            </div>
+            <span class="card-chip">Parcelas previstas</span>
+          </div>
+
+          <div class="invoice-filters-panel">
+            <div class="filter-group">
+              <label class="filter-group__label" for="invoice-month-filter">Mês da fatura</label>
+              <select class="filter-select" id="invoice-month-filter" name="invoice-month-filter">
+                <option value="">Selecione um mês...</option>
+              </select>
+            </div>
+
+            <div class="invoice-detail-summary" id="invoice-detail-summary">
+              <span>Fatura selecionada</span>
+              <strong>Mês atual</strong>
+              <small>Total previsto: R$ 0,00</small>
+            </div>
+          </div>
+
+          <div class="invoice-months" id="invoice-months"></div>
+
+          <div class="transactions-table-panel">
+            <div class="transactions-table-wrap" id="invoice-detail-wrap">
+              <table class="transactions-table" aria-label="Detalhamento da fatura">
+                <thead>
+                  <tr>
+                    <th scope="col">Origem</th>
+                    <th scope="col">Cartão</th>
+                    <th scope="col">Categoria</th>
+                    <th scope="col">Parcela</th>
+                    <th scope="col">Valor</th>
+                    <th scope="col">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="invoice-detail-body"></tbody>
+              </table>
+            </div>
+
+            <div class="empty-state" id="invoice-detail-empty-state" hidden>
+              <strong>Nenhuma parcela prevista para este mês.</strong>
+              <span>Compras parceladas futuras aparecerão aqui automaticamente.</span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section
+        class="dashboard-view reports-view"
+        id="reports-view"
+        data-dashboard-view="reports"
+        hidden
+      >
+        <section class="dashboard-card module-hero">
+          <div class="module-hero__copy">
+            <p class="section-label">Analise financeira</p>
+            <h2>Relatorios</h2>
+            <p>Analise suas receitas, despesas, contas e categorias em detalhes.</p>
+          </div>
+
+          <div class="module-hero__action">
+            <button class="primary-action" id="btnExportReport" type="button">
+              Exportar relatorio
+            </button>
+          </div>
+        </section>
+
+        <section class="dashboard-card reports-filters-panel" aria-labelledby="reports-filters-title">
+          <div class="card-head">
+            <div class="card-head-copy">
+              <p class="section-label">Filtros analiticos</p>
+              <h2 id="reports-filters-title">Refine o periodo e o foco da analise</h2>
+            </div>
+          </div>
+
+          <div class="reports-filters-grid">
+            <div class="filter-group">
+              <label class="filter-group__label" for="reports-period-filter">Periodo</label>
+              <select class="filter-select" id="reports-period-filter" name="reports-period-filter">
+                <option value="month">Mes atual</option>
+                <option value="last3">Ultimos 3 meses</option>
+                <option value="last6">Ultimos 6 meses</option>
+                <option value="year">Ano atual</option>
+                <option value="custom">Personalizado em breve</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-group__label" for="reports-type-filter">Tipo</label>
+              <select class="filter-select" id="reports-type-filter" name="reports-type-filter">
+                <option value="all">Todas</option>
+                <option value="receita">Receitas</option>
+                <option value="despesa">Despesas</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-group__label" for="reports-account-filter">Conta</label>
+              <select class="filter-select" id="reports-account-filter" name="reports-account-filter">
+                <option value="all">Todas</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-group__label" for="reports-category-filter">Categoria</label>
+              <select class="filter-select" id="reports-category-filter" name="reports-category-filter">
+                <option value="all">Todas</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="transactions-summary-grid"
+          id="reports-summary-grid"
+          aria-label="Resumo da area de relatorios"
+        ></section>
+
+        <div class="empty-state" id="reports-empty-state" hidden>
+          <strong>Nenhum dado disponivel para os filtros atuais.</strong>
+          <span>Cadastre uma transacao para alimentar os relatorios e destravar as analises.</span>
+          <button class="modal-button modal-button--primary empty-state__action" id="btnReportsEmptyAction" type="button">
+            Adicionar transacao
+          </button>
+        </div>
+
+        <section class="content-grid reports-content-grid" id="reports-content-grid">
+          <div class="reports-main-column">
+            <section class="dashboard-card reports-chart-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Evolucao mensal</p>
+                  <h2>Receitas x despesas</h2>
+                </div>
+                <span class="card-chip">Visual</span>
+              </div>
+
+              <div class="reports-chart">
+                <div class="reports-chart__bars" id="reports-chart-bars"></div>
+                <div class="empty-state" id="reports-chart-empty-state" hidden>
+                  <strong>Sem dados para o grafico.</strong>
+                  <span>Altere os filtros ou cadastre movimentacoes para visualizar a evolucao do periodo.</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="dashboard-card reports-category-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Categorias</p>
+                  <h2>Participacao por categoria</h2>
+                </div>
+                <span class="card-chip">Receitas e despesas</span>
+              </div>
+
+              <div class="reports-breakdown-list" id="reports-category-breakdown"></div>
+            </section>
+
+            <section class="dashboard-card reports-table-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Detalhamento</p>
+                  <h2>Transacoes do periodo</h2>
+                </div>
+                <span class="card-chip">Tabela analitica</span>
+              </div>
+
+              <div class="transactions-table-panel">
+                <div class="transactions-table-wrap" id="reports-table-wrap">
+                  <table class="transactions-table" aria-label="Tabela de relatorios">
+                    <thead>
+                      <tr>
+                        <th scope="col">Data</th>
+                        <th scope="col">Descricao</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Categoria</th>
+                        <th scope="col">Conta</th>
+                        <th scope="col">Valor</th>
+                        <th scope="col">Origem</th>
+                      </tr>
+                    </thead>
+                    <tbody id="reports-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="reports-side-column">
+            <section class="dashboard-card reports-insights-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Insights</p>
+                  <h2>Leituras automaticas</h2>
+                </div>
+              </div>
+
+              <div class="reports-insights-list" id="reports-insights-list"></div>
+            </section>
+
+            <section class="dashboard-card reports-account-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Origem</p>
+                  <h2>Movimentacao por origem</h2>
+                </div>
+                <span class="card-chip">Comparativo</span>
+              </div>
+
+              <div class="reports-account-list" id="reports-account-breakdown"></div>
+            </section>
+
+            <section class="dashboard-card reports-credit-card">
+              <div class="card-head">
+                <div class="card-head-copy">
+                  <p class="section-label">Credito</p>
+                  <h2>Cartoes e faturas</h2>
+                </div>
+                <span class="card-chip">Previsao</span>
+              </div>
+
+              <div class="reports-credit-grid" id="reports-credit-breakdown"></div>
+            </section>
+          </aside>
+        </section>
+      </section>
+
+      <section
+        class="dashboard-view categories-view"
+        id="categories-view"
+        data-dashboard-view="categories"
+        hidden
+      >
+        <section class="dashboard-card module-hero">
+          <div class="module-hero__copy">
+            <p class="section-label">Organizacao financeira</p>
+            <h2>Categorias</h2>
+            <p>Organize suas receitas e despesas por categorias.</p>
+          </div>
+
+          <div class="module-hero__action">
+            <button class="primary-action" id="btnAddManagedCategory" type="button">
+              Nova categoria
+            </button>
+          </div>
+        </section>
+
+        <section
+          class="transactions-summary-grid"
+          id="categories-summary-grid"
+          aria-label="Resumo da area de categorias"
+        ></section>
+
+        <section class="dashboard-card categories-workspace" aria-labelledby="categories-area-title">
+          <div class="card-head">
+            <div class="card-head-main">
+              <div class="card-head-copy">
+                <p class="section-label">Estrutura de classificacao</p>
+                <h2 id="categories-area-title">Categorias cadastradas</h2>
+              </div>
+              <div class="transaction-filters" role="toolbar" aria-label="Filtrar categorias">
+                <button
+                  class="filter-toggle filter-toggle--all is-active"
+                  type="button"
+                  data-managed-category-filter="all"
+                  aria-pressed="true"
+                >
+                  Todas
+                </button>
+                <button
+                  class="filter-toggle filter-toggle--despesa"
+                  type="button"
+                  data-managed-category-filter="expense"
+                  aria-pressed="false"
+                >
+                  Despesas
+                </button>
+                <button
+                  class="filter-toggle filter-toggle--receita"
+                  type="button"
+                  data-managed-category-filter="income"
+                  aria-pressed="false"
+                >
+                  Receitas
+                </button>
+                <button
+                  class="filter-toggle filter-toggle--all"
+                  type="button"
+                  data-managed-category-filter="inactive"
+                  aria-pressed="false"
+                >
+                  Inativas
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="categories-grid" id="categories-grid"></div>
+
+          <div class="empty-state" id="categories-empty-state" hidden>
+            <strong>Nenhuma categoria cadastrada ainda.</strong>
+            <span>Crie sua primeira categoria para organizar receitas, despesas e relatorios futuros.</span>
+            <button class="modal-button modal-button--primary empty-state__action" id="btnCreateFirstManagedCategory" type="button">
+              Criar primeira categoria
+            </button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div
+      class="transaction-modal"
+      id="transaction-modal"
+      hidden
+    >
+      <section
+        class="transaction-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transaction-modal-title"
+        aria-describedby="transaction-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Transação</p>
+            <h2 id="transaction-modal-title">Nova Transação</h2>
+            <p class="transaction-modal__subtitle" id="transaction-modal-description">
+              Preencha os dados para registrar uma nova receita ou despesa.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-transaction-modal
+            aria-label="Fechar modal de transação"
+          >
+            ×
+          </button>
+        </div>
+
+        <form class="transaction-form" id="transaction-form">
+          <fieldset class="transaction-type-field">
+            <legend>Tipo de transação</legend>
+            <input id="transaction-type" name="type" type="hidden" required>
+
+            <div class="transaction-type-options">
+              <button
+                class="transaction-type-option transaction-type-option--receita"
+                type="button"
+                data-transaction-type-option="receita"
+                aria-pressed="false"
+              >
+                <span class="transaction-type-icon" aria-hidden="true">+</span>
+                <span>
+                  <strong>Receita</strong>
+                  <small>Entrada de dinheiro</small>
+                </span>
+              </button>
+
+              <button
+                class="transaction-type-option transaction-type-option--despesa"
+                type="button"
+                data-transaction-type-option="despesa"
+                aria-pressed="false"
+              >
+                <span class="transaction-type-icon" aria-hidden="true">-</span>
+                <span>
+                  <strong>Despesa</strong>
+                  <small>Saída de dinheiro</small>
+                </span>
+              </button>
+            </div>
+          </fieldset>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="transaction-amount">Valor (R$)</label>
+              <input
+                id="transaction-amount"
+                name="amount"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+                min="0.01"
+                placeholder="0,00"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="transaction-date">Data</label>
+              <input
+                id="transaction-date"
+                name="date"
+                type="date"
+                required
+              >
+            </div>
+          </div>
+          <div class="form-field" id="transaction-payment-method-field" hidden>
+            <label for="transaction-payment-method">Forma de pagamento</label>
+            <select id="transaction-payment-method" name="paymentMethod">
+              <option value="">Selecione...</option>
+              <option value="debit">À vista</option>
+              <option value="credit">Crédito</option>
+            </select>
+            <small class="form-help">Disponível apenas para despesas.</small>
+          </div>
+          <div class="form-field" id="transaction-card-field" hidden>
+            <label for="transaction-card">Cartão</label>
+            <select id="transaction-card" name="cardId">
+              <option value="">Selecione um cartão...</option>
+            </select>
+            <small class="form-help">Selecione um cartão apenas quando a compra for no crédito.</small>
+          </div>
+
+          <div class="credit-fields" id="transaction-credit-fields" hidden>
+            <div class="transaction-form-grid credit-form-grid credit-form-grid--installments-only">
+              <div class="form-field">
+                <label for="transaction-installments">Número de parcelas</label>
+                <select id="transaction-installments" name="installments">
+                  <option value="1">1x</option>
+                  <option value="2">2x</option>
+                  <option value="3">3x</option>
+                  <option value="4">4x</option>
+                  <option value="5">5x</option>
+                  <option value="6">6x</option>
+                  <option value="10">10x</option>
+                  <option value="12">12x</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="transaction-credit-note" id="transaction-credit-note">
+              Esta compra será lançada na fatura do cartão selecionado. As parcelas futuras serão previstas automaticamente.
+            </div>
+
+            <div class="transaction-form-grid credit-form-grid" hidden>
+              <div class="form-field">
+                <label for="transaction-first-invoice-month">Mês da primeira fatura</label>
+                <input
+                  id="transaction-first-invoice-month"
+                  name="firstInvoiceMonth"
+                  type="month"
+                >
+              </div>
+
+              <div class="form-field">
+                <label for="transaction-due-day">Dia de vencimento</label>
+                <input
+                  id="transaction-due-day"
+                  name="dueDay"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="31"
+                  placeholder="Ex.: 10"
+                >
+              </div>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="transaction-category">Categoria</label>
+            <select id="transaction-category" name="category" required>
+              <option value="">Selecione uma categoria...</option>
+              <option value="Salário">Salário</option>
+              <option value="Freelance">Freelance</option>
+              <option value="Alimentação">Alimentação</option>
+              <option value="Moradia">Moradia</option>
+              <option value="Transporte">Transporte</option>
+              <option value="Assinaturas">Assinaturas</option>
+              <option value="Lazer">Lazer</option>
+              <option value="Saúde">Saúde</option>
+              <option value="Estudos">Estudos</option>
+            </select>
+            <button class="category-create-button" id="btnShowCategoryInput" type="button">
+              + Criar nova categoria
+            </button>
+            <div class="category-create-panel" id="category-create-panel" hidden>
+              <label class="sr-only" for="new-category-name">Nova categoria</label>
+              <div class="category-create-controls">
+                <input
+                  id="new-category-name"
+                  type="text"
+                  placeholder="Digite uma nova categoria"
+                  maxlength="40"
+                >
+                <button class="category-confirm-button" id="btnConfirmCategory" type="button">
+                  Adicionar
+                </button>
+                <button class="category-cancel-button" id="btnCancelCategory" type="button">
+                  Cancelar
+                </button>
+              </div>
+              <p class="category-create-feedback" id="category-create-feedback" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <div class="field-label-row">
+              <label for="transaction-description">Descrição (opcional)</label>
+              <span id="transaction-description-counter">0/120</span>
+            </div>
+            <textarea
+              id="transaction-description"
+              name="description"
+              rows="3"
+              placeholder="Ex.: Salário, Aluguel, Supermercado..."
+              maxlength="120"
+            ></textarea>
+          </div>
+
+          <p class="transaction-form-feedback" id="transaction-form-feedback" aria-live="polite"></p>
+
+          <p class="transaction-security-note">
+            Seus dados estão protegidos e não são compartilhados.
+          </p>
+
+          <div class="transaction-form-actions">
+            <button
+              class="modal-button modal-button--ghost"
+              type="button"
+              data-close-transaction-modal
+            >
+              Cancelar
+            </button>
+            <button class="modal-button modal-button--primary" id="transaction-submit-button" type="submit">
+              Salvar transação
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="transaction-modal recurrence-modal" id="recurrence-modal" hidden>
+      <section
+        class="transaction-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recurrence-modal-title"
+        aria-describedby="recurrence-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Recorrência</p>
+            <h2 id="recurrence-modal-title">Nova recorrência</h2>
+            <p class="transaction-modal__subtitle" id="recurrence-modal-description">
+              Cadastre uma receita ou despesa fixa para acompanhar seu mês com mais previsibilidade.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-recurrence-modal
+            aria-label="Fechar modal de recorrência"
+          >
+            ×
+          </button>
+        </div>
+
+        <form class="transaction-form" id="recurrence-form">
+          <fieldset class="transaction-type-field">
+            <legend>Tipo de recorrência</legend>
+            <input id="recurrence-type" name="type" type="hidden" required>
+            <input id="recurrence-status" name="status" type="hidden" value="active">
+
+            <div class="transaction-type-options">
+              <button
+                class="transaction-type-option transaction-type-option--receita"
+                type="button"
+                data-recurrence-type-option="receita"
+                aria-pressed="false"
+              >
+                <span class="transaction-type-icon" aria-hidden="true">+</span>
+                <span>
+                  <strong>Receita</strong>
+                  <small>Entrada fixa mensal</small>
+                </span>
+              </button>
+
+              <button
+                class="transaction-type-option transaction-type-option--despesa"
+                type="button"
+                data-recurrence-type-option="despesa"
+                aria-pressed="false"
+              >
+                <span class="transaction-type-icon" aria-hidden="true">-</span>
+                <span>
+                  <strong>Despesa</strong>
+                  <small>Saída fixa mensal</small>
+                </span>
+              </button>
+            </div>
+          </fieldset>
+
+          <div class="form-field">
+            <label for="recurrence-description">Descrição</label>
+            <input
+              id="recurrence-description"
+              name="description"
+              type="text"
+              maxlength="80"
+              placeholder="Ex.: Netflix, Salário, Academia..."
+              required
+            >
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="recurrence-amount">Valor (R$)</label>
+              <input
+                id="recurrence-amount"
+                name="amount"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+                min="0.01"
+                placeholder="0,00"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="recurrence-category">Categoria</label>
+              <select id="recurrence-category" name="category" required>
+                <option value="">Selecione uma categoria...</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="transaction-form-grid recurrence-form-grid">
+            <div class="form-field">
+              <label for="recurrence-day">Dia do mês</label>
+              <input
+                id="recurrence-day"
+                name="dayOfMonth"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="31"
+                placeholder="10"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="recurrence-frequency">Frequência</label>
+              <select id="recurrence-frequency" name="frequency">
+                <option value="monthly">Mensal</option>
+              </select>
+            </div>
+          </div>
+
+          <p class="transaction-form-feedback" id="recurrence-form-feedback" aria-live="polite"></p>
+
+          <p class="transaction-security-note">
+            Seus dados estão protegidos e não são compartilhados.
+          </p>
+
+          <div class="transaction-form-actions">
+            <button
+              class="modal-button modal-button--ghost"
+              type="button"
+              data-close-recurrence-modal
+            >
+              Cancelar
+            </button>
+            <button class="modal-button modal-button--primary" id="recurrence-submit-button" type="submit">
+              Salvar recorrência
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="transaction-modal card-modal" id="card-modal" hidden>
+      <section
+        class="transaction-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="card-modal-title"
+        aria-describedby="card-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Cartão</p>
+            <h2 id="card-modal-title">Novo cartão</h2>
+            <p class="transaction-modal__subtitle" id="card-modal-description">
+              Cadastre um cartão para organizar compras no crédito e acompanhar suas faturas.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-card-modal
+            aria-label="Fechar modal de cartão"
+          >
+            ×
+          </button>
+        </div>
+
+        <form class="transaction-form" id="card-form">
+          <div class="form-field">
+            <label for="card-name">Nome do cartão</label>
+            <input
+              id="card-name"
+              name="name"
+              type="text"
+              maxlength="60"
+              placeholder="Ex.: Nubank Platinum"
+              required
+            >
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="card-limit">Limite</label>
+              <input
+                id="card-limit"
+                name="limit"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+                min="0"
+                placeholder="0,00"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="card-closing-day">Dia de fechamento</label>
+              <input
+                id="card-closing-day"
+                name="closingDay"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                max="31"
+                placeholder="Ex.: 5"
+                required
+              >
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="card-due-day">Dia de vencimento</label>
+            <input
+              id="card-due-day"
+              name="dueDay"
+              type="number"
+              inputmode="numeric"
+              min="1"
+              max="31"
+              placeholder="Ex.: 12"
+              required
+            >
+          </div>
+
+          <p class="transaction-form-feedback" id="card-form-feedback" aria-live="polite"></p>
+
+          <div class="transaction-form-actions">
+            <button
+              class="modal-button modal-button--ghost"
+              type="button"
+              data-close-card-modal
+            >
+              Cancelar
+            </button>
+            <button class="modal-button modal-button--primary" id="card-submit-button" type="submit">
+              Salvar cartão
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="transaction-modal account-modal" id="account-modal" hidden>
+      <section
+        class="transaction-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-modal-title"
+        aria-describedby="account-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Conta</p>
+            <h2 id="account-modal-title">Nova conta</h2>
+            <p class="transaction-modal__subtitle" id="account-modal-description">
+              Cadastre uma conta bancaria, carteira ou cartao de credito para centralizar seus saldos.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-account-modal
+            aria-label="Fechar modal de conta"
+          >
+            x
+          </button>
+        </div>
+
+        <form class="transaction-form" id="account-form">
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="account-name">Nome da conta</label>
+              <input
+                id="account-name"
+                name="name"
+                type="text"
+                maxlength="60"
+                placeholder="Ex.: Banco principal"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="account-type">Tipo da conta</label>
+              <select id="account-type" name="type" required>
+                <option value="checking">Conta corrente</option>
+                <option value="savings">Poupanca</option>
+                <option value="wallet">Carteira</option>
+                <option value="digital_account">Conta digital</option>
+                <option value="credit_card">Cartao de credito</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="account-balance">Saldo inicial</label>
+              <input
+                id="account-balance"
+                name="balance"
+                type="number"
+                inputmode="decimal"
+                step="0.01"
+                placeholder="0,00"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="account-institution">Instituicao financeira</label>
+              <input
+                id="account-institution"
+                name="institution"
+                type="text"
+                maxlength="60"
+                placeholder="Ex.: Itau, Nubank, Caixa"
+                required
+              >
+            </div>
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="account-color">Cor da conta</label>
+              <input id="account-color" name="color" type="color" value="#1a365d">
+            </div>
+
+            <div class="form-field">
+              <label for="account-icon">Icone visual</label>
+              <select id="account-icon" name="icon" required>
+                <option value="bank">Banco</option>
+                <option value="wallet">Carteira</option>
+                <option value="digital">Digital</option>
+                <option value="card">Cartao</option>
+                <option value="safe">Reserva</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="account-status">Status</label>
+            <select id="account-status" name="status" required>
+              <option value="active">Ativa</option>
+              <option value="inactive">Inativa</option>
+            </select>
+          </div>
+
+          <div class="credit-fields account-credit-fields" id="account-credit-fields" hidden>
+            <div class="transaction-form-grid">
+              <div class="form-field">
+                <label for="account-credit-limit">Limite total</label>
+                <input
+                  id="account-credit-limit"
+                  name="creditLimit"
+                  type="number"
+                  inputmode="decimal"
+                  step="0.01"
+                  min="0"
+                  placeholder="0,00"
+                >
+              </div>
+
+              <div class="form-field">
+                <label for="account-linked-payment">Conta vinculada para pagamento</label>
+                <select id="account-linked-payment" name="linkedPaymentAccountId">
+                  <option value="">Selecione uma conta...</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="transaction-form-grid">
+              <div class="form-field">
+                <label for="account-closing-day">Dia de fechamento</label>
+                <input
+                  id="account-closing-day"
+                  name="closingDay"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="31"
+                  placeholder="Ex.: 25"
+                >
+              </div>
+
+              <div class="form-field">
+                <label for="account-due-day">Dia de vencimento</label>
+                <input
+                  id="account-due-day"
+                  name="dueDay"
+                  type="number"
+                  inputmode="numeric"
+                  min="1"
+                  max="31"
+                  placeholder="Ex.: 5"
+                >
+              </div>
+            </div>
+          </div>
+
+          <p class="transaction-form-feedback" id="account-form-feedback" aria-live="polite"></p>
+
+          <div class="transaction-form-actions">
+            <button
+              class="modal-button modal-button--ghost"
+              type="button"
+              data-close-account-modal
+            >
+              Cancelar
+            </button>
+            <button class="modal-button modal-button--primary" id="account-submit-button" type="submit">
+              Salvar conta
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="transaction-modal account-detail-modal" id="account-detail-modal" hidden>
+      <section
+        class="transaction-modal__dialog account-detail-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-detail-title"
+        aria-describedby="account-detail-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Detalhes da conta</p>
+            <h2 id="account-detail-title">Conta</h2>
+            <p class="transaction-modal__subtitle" id="account-detail-description">
+              Veja informacoes principais, historico recente e indicadores do mes.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-account-detail-modal
+            aria-label="Fechar detalhes da conta"
+          >
+            x
+          </button>
+        </div>
+
+        <div class="account-detail-body" id="account-detail-body"></div>
+
+        <div class="transaction-form-actions">
+          <button
+            class="modal-button modal-button--ghost"
+            type="button"
+            data-close-account-detail-modal
+          >
+            Fechar
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="transaction-modal profile-modal" id="profile-modal" hidden>
+      <section
+        class="transaction-modal__dialog profile-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
+        aria-describedby="profile-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Meu perfil</p>
+            <h2 id="profile-modal-title">Editar perfil</h2>
+            <p class="transaction-modal__subtitle" id="profile-modal-description">
+              Atualize seus dados pessoais, foto e senha em um só lugar.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-profile-modal
+            aria-label="Fechar modal de perfil"
+          >
+            x
+          </button>
+        </div>
+
+        <div class="profile-modal__body">
+          <section class="profile-section">
+            <div class="card-head">
+              <div class="card-head-copy">
+                <p class="section-label">Informações pessoais</p>
+                <h2>Dados da conta</h2>
+              </div>
+            </div>
+
+            <form class="transaction-form" id="profile-form">
+              <div class="profile-avatar-block">
+                <div class="profile-avatar profile-avatar--large" id="profile-avatar-preview">
+                  <img class="profile-avatar__image" id="profile-avatar-image" alt="" hidden>
+                  <span class="profile-avatar__fallback" id="profile-avatar-fallback">UT</span>
+                </div>
+                <div class="profile-avatar__actions">
+                  <button class="modal-button modal-button--ghost" id="profile-upload-trigger" type="button">
+                    Alterar foto
+                  </button>
+                  <input
+                    id="profile-photo-input"
+                    name="profilePhoto"
+                    type="file"
+                    accept=".png,.jpg,.jpeg,image/png,image/jpeg"
+                    hidden
+                  >
+                  <small>Arquivos JPG ou PNG. O preview aparece antes de salvar.</small>
+                </div>
+              </div>
+
+              <div class="transaction-form-grid">
+                <div class="form-field">
+                  <label for="profile-name">Nome</label>
+                  <input
+                    id="profile-name"
+                    name="profileName"
+                    type="text"
+                    maxlength="80"
+                    placeholder="Seu nome completo"
+                    required
+                  >
+                </div>
+
+                <div class="form-field">
+                  <label for="profile-email">E-mail</label>
+                  <input
+                    id="profile-email"
+                    name="profileEmail"
+                    type="email"
+                    readonly
+                  >
+                </div>
+              </div>
+
+              <p class="transaction-form-feedback" id="profile-form-feedback" aria-live="polite"></p>
+
+              <div class="transaction-form-actions">
+                <button class="modal-button modal-button--primary" id="profile-submit-button" type="submit">
+                  Salvar alterações
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section class="profile-section">
+            <div class="card-head">
+              <div class="card-head-copy">
+                <p class="section-label">Segurança</p>
+                <h2>Alterar senha</h2>
+              </div>
+            </div>
+
+            <form class="transaction-form" id="profile-password-form">
+              <div class="form-field">
+                <label for="profile-current-password">Senha atual</label>
+                <input
+                  id="profile-current-password"
+                  name="currentPassword"
+                  type="password"
+                  placeholder="Digite sua senha atual"
+                  required
+                >
+              </div>
+
+              <div class="transaction-form-grid">
+                <div class="form-field">
+                  <label for="profile-new-password">Nova senha</label>
+                  <input
+                    id="profile-new-password"
+                    name="newPassword"
+                    type="password"
+                    minlength="6"
+                    placeholder="Mínimo de 6 caracteres"
+                    required
+                  >
+                </div>
+
+                <div class="form-field">
+                  <label for="profile-confirm-password">Confirmar nova senha</label>
+                  <input
+                    id="profile-confirm-password"
+                    name="confirmPassword"
+                    type="password"
+                    minlength="6"
+                    placeholder="Repita a nova senha"
+                    required
+                  >
+                </div>
+              </div>
+
+              <p class="transaction-form-feedback" id="profile-password-feedback" aria-live="polite"></p>
+
+              <div class="transaction-form-actions">
+                <button class="modal-button modal-button--primary" id="profile-password-submit-button" type="submit">
+                  Alterar senha
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div class="transaction-modal category-manager-modal" id="category-manager-modal" hidden>
+      <section
+        class="transaction-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-manager-modal-title"
+        aria-describedby="category-manager-modal-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Categoria</p>
+            <h2 id="category-manager-modal-title">Nova categoria</h2>
+            <p class="transaction-modal__subtitle" id="category-manager-modal-description">
+              Defina nome, tipo, cor e contexto visual para futuras transacoes e relatorios.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-category-manager-modal
+            aria-label="Fechar modal de categoria"
+          >
+            x
+          </button>
+        </div>
+
+        <form class="transaction-form" id="category-manager-form">
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="managed-category-name">Nome da categoria</label>
+              <input
+                id="managed-category-name"
+                name="name"
+                type="text"
+                maxlength="50"
+                placeholder="Ex.: Alimentacao"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="managed-category-type">Tipo</label>
+              <select id="managed-category-type" name="type" required>
+                <option value="expense">Despesa</option>
+                <option value="income">Receita</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="managed-category-icon">Icone</label>
+              <input
+                id="managed-category-icon"
+                name="icon"
+                type="text"
+                maxlength="3"
+                placeholder="Ex.: AL"
+                required
+              >
+            </div>
+
+            <div class="form-field">
+              <label for="managed-category-color">Cor</label>
+              <input id="managed-category-color" name="color" type="color" value="#1a365d">
+            </div>
+          </div>
+
+          <div class="transaction-form-grid">
+            <div class="form-field">
+              <label for="managed-category-status">Status</label>
+              <select id="managed-category-status" name="status" required>
+                <option value="active">Ativa</option>
+                <option value="inactive">Inativa</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="managed-category-description">Descricao opcional</label>
+              <input
+                id="managed-category-description"
+                name="description"
+                type="text"
+                maxlength="120"
+                placeholder="Contexto e uso da categoria"
+              >
+            </div>
+          </div>
+
+          <p class="transaction-form-feedback" id="category-manager-feedback" aria-live="polite"></p>
+
+          <div class="transaction-form-actions">
+            <button
+              class="modal-button modal-button--ghost"
+              type="button"
+              data-close-category-manager-modal
+            >
+              Cancelar
+            </button>
+            <button class="modal-button modal-button--primary" id="category-manager-submit-button" type="submit">
+              Salvar categoria
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="transaction-modal category-detail-modal" id="category-detail-modal" hidden>
+      <section
+        class="transaction-modal__dialog category-detail-modal__dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-detail-title"
+        aria-describedby="category-detail-description"
+      >
+        <div class="transaction-modal__header">
+          <div>
+            <p class="section-label">Detalhes da categoria</p>
+            <h2 id="category-detail-title">Categoria</h2>
+            <p class="transaction-modal__subtitle" id="category-detail-description">
+              Veja o desempenho da categoria e as ultimas movimentacoes vinculadas.
+            </p>
+          </div>
+
+          <button
+            class="transaction-modal__close"
+            type="button"
+            data-close-category-detail-modal
+            aria-label="Fechar detalhes da categoria"
+          >
+            x
+          </button>
+        </div>
+
+        <div class="category-detail-body" id="category-detail-body"></div>
+
+        <div class="transaction-form-actions">
+          <button
+            class="modal-button modal-button--ghost"
+            type="button"
+            data-close-category-detail-modal
+          >
+            Fechar
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <script src="../config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../services/supabaseClient.js"></script>
+    <script src="../services/authService.js"></script>
+    <script src="../services/financeDataService.js"></script>
+    <script src="../utils/dashboard-data.js"></script>
+    <script src="../components/dashboard-components.js"></script>
+    <script src="../scripts/dashboard.js"></script>
+  </body>
+</html>
+
+

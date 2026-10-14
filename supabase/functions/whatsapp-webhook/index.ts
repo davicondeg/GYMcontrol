@@ -1,4 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { handleGymIntent } from './modules/gym.ts';
+import { routeMessage } from './router.ts';
+import type { IncomingMessage, MessageProvider, ModuleResult } from './types.ts';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
 
@@ -26,7 +29,7 @@ async function verifySignature(request: Request, body: string) {
   return signature.length === expected.length && signature === expected;
 }
 
-async function sendText(to: string, text: string) {
+async function sendMetaText(to: string, text: string) {
   const response = await fetch(
     `https://graph.facebook.com/v23.0/${env('WHATSAPP_PHONE_NUMBER_ID')}/messages`,
     {
@@ -38,12 +41,60 @@ async function sendText(to: string, text: string) {
   if (!response.ok) throw new Error(`WhatsApp send failed: ${response.status}`);
 }
 
-function parseWaterAmount(text: string) {
-  const normalized = text.toLowerCase().replace(',', '.');
-  const match = normalized.match(/(\d+(?:\.\d+)?)\s*(ml|mililitros?|l|litros?)/i);
-  if (!match || !/(bebi|tomei|água|agua|adicion)/i.test(normalized)) return null;
-  const value = Number(match[1]);
-  return Math.round(match[2].toLowerCase().startsWith('l') ? value * 1000 : value);
+async function sendEvolutionText(instance: string, to: string, message: string) {
+  const baseUrl = env('EVOLUTION_API_URL').replace(/\/$/, '');
+  const response = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
+    method: 'POST',
+    headers: { apikey: env('EVOLUTION_API_KEY'), ...jsonHeaders },
+    body: JSON.stringify({ number: to, text: message }),
+  });
+  if (!response.ok) throw new Error(`Evolution send failed: ${response.status}`);
+}
+
+async function sendText(provider: MessageProvider, to: string, text: string) {
+  if (provider.type === 'evolution') {
+    return sendEvolutionText(provider.instance, to, text);
+  }
+  return sendMetaText(to, text);
+}
+
+function evolutionText(data: any) {
+  return data?.message?.conversation ??
+    data?.message?.extendedTextMessage?.text ??
+    data?.message?.ephemeralMessage?.message?.extendedTextMessage?.text ??
+    null;
+}
+
+function whatsappNumber(jid: unknown) {
+  return String(jid ?? '').split('@')[0].replace(/\D/g, '');
+}
+
+function parseEvolutionMessages(payload: any): IncomingMessage[] {
+  if (String(payload?.event ?? '').toLowerCase().replaceAll('_', '.') !== 'messages.upsert') return [];
+  const data = payload?.data;
+  if (!data || data.key?.fromMe || String(data.key?.remoteJid ?? '').endsWith('@g.us')) return [];
+  const text = evolutionText(data)?.trim();
+  const waId = whatsappNumber(data.key?.remoteJidAlt ?? data.key?.participantAlt ?? data.key?.remoteJid);
+  if (!text || !waId || !data.key?.id || !payload.instance) return [];
+  return [{
+    messageId: `evolution:${payload.instance}:${data.key.id}`,
+    waId,
+    text,
+    provider: { type: 'evolution', instance: String(payload.instance) },
+  }];
+}
+
+function parseMetaMessages(payload: any): IncomingMessage[] {
+  const messages = payload?.entry?.flatMap((entry: any) =>
+    entry.changes?.flatMap((change: any) => change.value?.messages ?? []) ?? []) ?? [];
+  return messages
+    .filter((message: any) => message.type === 'text')
+    .map((message: any) => ({
+      messageId: String(message.id),
+      waId: String(message.from),
+      text: String(message.text?.body ?? '').trim(),
+      provider: { type: 'meta' as const },
+    }));
 }
 
 Deno.serve(async (request: Request) => {
@@ -56,54 +107,93 @@ Deno.serve(async (request: Request) => {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
   const rawBody = await request.text();
-  if (!await verifySignature(request, rawBody)) return new Response('Invalid signature', { status: 401 });
-
   const payload = JSON.parse(rawBody);
-  const messages = payload?.entry?.flatMap((entry: any) =>
-    entry.changes?.flatMap((change: any) => change.value?.messages ?? []) ?? []) ?? [];
+  const isEvolution = Boolean(payload?.event && payload?.instance && payload?.data);
+  if (isEvolution) {
+    const url = new URL(request.url);
+    if (url.searchParams.get('secret') !== env('EVOLUTION_WEBHOOK_SECRET')) {
+      return new Response('Invalid Evolution webhook secret', { status: 401 });
+    }
+  } else if (!await verifySignature(request, rawBody)) {
+    return new Response('Invalid Meta signature', { status: 401 });
+  }
+
+  const messages = isEvolution ? parseEvolutionMessages(payload) : parseMetaMessages(payload);
   const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
 
   for (const message of messages) {
-    if (message.type !== 'text') continue;
-    const messageId = String(message.id);
-    const waId = String(message.from);
-    const text = String(message.text?.body ?? '').trim();
+    const { messageId, provider, text, waId } = message;
     const { error: duplicateError } = await admin.from('bot_messages').insert({
-      message_id: messageId, wa_id: waId, direction: 'incoming', message_text: text,
+      message_id: messageId,
+      wa_id: waId,
+      direction: 'incoming',
+      message_text: text,
+      metadata: { provider: provider.type },
     });
     if (duplicateError?.code === '23505') continue;
     if (duplicateError) throw duplicateError;
 
-    const linkCode = text.match(/^GYM-\d{6}$/i)?.[0];
+    const linkCode = text.match(/^(GYM|APP)-\d{6}$/i)?.[0];
     if (linkCode) {
       const { data: userId } = await admin.rpc('bot_link_whatsapp', { p_code: linkCode, p_wa_id: waId });
-      await sendText(waId, userId ? 'WhatsApp conectado à sua conta GYMcontrol.' : 'Código inválido ou expirado. Gere um novo código no aplicativo.');
+      await sendText(provider, waId, userId ? 'WhatsApp conectado à sua conta GYMcontrol.' : 'Código inválido ou expirado. Gere um novo código no aplicativo.');
       continue;
     }
 
     const { data: connection } = await admin.from('whatsapp_connections').select('user_id').eq('wa_id', waId).maybeSingle();
     if (!connection) {
-      await sendText(waId, 'Conecte seu WhatsApp pelo aplicativo GYMcontrol antes de usar o bot.');
+      await sendText(provider, waId, 'Conecte seu WhatsApp pelo aplicativo GYMcontrol antes de usar o bot.');
       continue;
     }
 
-    const date = localDate();
-    const amount = parseWaterAmount(text);
-    if (amount) {
-      const { data: total, error } = await admin.rpc('bot_add_water', { p_user_id: connection.user_id, p_date: date, p_amount: amount });
-      if (error) throw error;
-      await admin.from('bot_actions').insert({ message_id: messageId, user_id: connection.user_id, action: 'add_water', status: 'completed', input: { amount_ml: amount }, result: { total_ml: total } });
-      await sendText(waId, `Registrei ${amount} ml. Seu total de hoje é ${total} ml.`);
-    } else if (/quanto.*(água|agua)|total.*(água|agua)/i.test(text)) {
-      const { data } = await admin.from('daily_tracking').select('water_ml').eq('user_id', connection.user_id).eq('date', date).maybeSingle();
-      const total = data?.water_ml ?? 0;
-      await admin.from('bot_actions').insert({ message_id: messageId, user_id: connection.user_id, action: 'query_water', status: 'completed', result: { total_ml: total } });
-      await sendText(waId, `Você registrou ${total} ml de água hoje.`);
+    const route = routeMessage(text);
+    let response: ModuleResult;
+
+    if (route.module === 'gym') {
+      response = await handleGymIntent({
+        admin,
+        messageId,
+        userId: connection.user_id,
+        waId,
+        text,
+        date: localDate(),
+        gymControlUrl: Deno.env.get('GYMCONTROL_APP_URL') ?? undefined,
+      }, route);
+    } else if (route.intent === 'module_not_available') {
+      const moduleName = route.module === 'finance' ? 'Financeiro' : 'Agenda';
+      response = { reply: `Entendi que essa mensagem pertence ao módulo ${moduleName}, mas ele ainda não está disponível.` };
+    } else if (route.intent === 'help') {
+      response = {
+        reply: 'Posso registrar ou consultar água, hábitos e treinos da aba Hoje, além de enviar o link do GymControl. Exemplos: “bebi 500 ml”, “tomei creatina”, “quais hábitos fiz hoje?”, “listar meus treinos” e “concluí o treino A”.',
+      };
     } else {
-      await sendText(waId, 'Ainda estou aprendendo. Por enquanto, posso registrar ou consultar sua água de hoje.');
+      response = {
+        reply: 'Não entendi com segurança. Tente, por exemplo: “bebi 500 ml”, “tomei creatina”, “listar meus treinos” ou “link do GymControl”.',
+      };
     }
 
-    await admin.from('bot_messages').update({ user_id: connection.user_id, status: 'processed' }).eq('message_id', messageId);
+    if (response.action) {
+      const { error: actionError } = await admin.from('bot_actions').insert({
+        message_id: messageId,
+        user_id: connection.user_id,
+        module_code: route.module,
+        intent: route.intent,
+        action: response.action,
+        status: 'completed',
+        input: response.input ?? {},
+        result: response.result ?? {},
+      });
+      if (actionError) throw actionError;
+    }
+
+    await sendText(provider, waId, response.reply);
+    await admin.from('bot_messages').update({
+      user_id: connection.user_id,
+      module_code: route.module === 'assistant' ? null : route.module,
+      intent: route.intent,
+      intent_confidence: route.confidence,
+      status: 'processed',
+    }).eq('message_id', messageId);
   }
 
   return new Response(JSON.stringify({ received: true }), { headers: jsonHeaders });

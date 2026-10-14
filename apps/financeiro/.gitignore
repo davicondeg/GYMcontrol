@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.local
+frontend/src/config.js
+dist/
+build/
+.vscode/
+.DS_Store
