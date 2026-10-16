@@ -21,6 +21,10 @@ export function routeMessage(text: string): RoutedIntent {
     return { module: 'gym', intent: 'query_water', confidence: 0.98, entities: {} };
   }
 
+  if (/(exercícios|exercicios|cargas?).*(treinos?)|(treinos?).*(exercícios|exercicios|cargas?)/i.test(normalized)) {
+    return { module: 'gym', intent: 'list_workout_exercises', confidence: 0.97, entities: {} };
+  }
+
   if (/(quais|listar|mostre|ver).*(meus )?treinos|^(meus )?treinos[?!. ]*$/i.test(normalized)) {
     return { module: 'gym', intent: 'list_workouts', confidence: 0.96, entities: {} };
   }

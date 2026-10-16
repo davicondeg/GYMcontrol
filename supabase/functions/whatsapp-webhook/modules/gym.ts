@@ -11,6 +11,18 @@ type Workout = {
   name: string;
 };
 
+type WorkoutExercise = {
+  workout_id: number;
+  personal_exercise_id: number;
+  position: number;
+};
+
+type PersonalExercise = {
+  id: number;
+  name: string;
+  personal_load: string;
+};
+
 function normalize(value: string) {
   return value
     .normalize('NFD')
@@ -228,6 +240,63 @@ export async function handleGymIntent(
       reply: `${introduction}\n${list}`,
       action: 'list_workouts',
       result: { total: workouts.length, completed_today: completedIds.size, date: context.date },
+    };
+  }
+
+  if (route.intent === 'list_workout_exercises') {
+    const workouts = await listWorkouts(context);
+    if (workouts.length === 0) return { reply: availableWorkoutsReply(workouts) };
+
+    const requestedWorkout = findWorkout(context.text, workouts);
+    const selectedWorkouts = requestedWorkout ? [requestedWorkout] : workouts;
+    const workoutIds = selectedWorkouts.map(({ id }) => id);
+
+    const { data: links, error: linksError } = await context.admin
+      .from('workout_exercises')
+      .select('workout_id,personal_exercise_id,position')
+      .eq('user_id', context.userId)
+      .in('workout_id', workoutIds)
+      .order('position');
+    if (linksError) throw linksError;
+
+    const exerciseIds = [...new Set((links ?? []).map(
+      ({ personal_exercise_id }: WorkoutExercise) => personal_exercise_id,
+    ))];
+    let exercises: PersonalExercise[] = [];
+
+    if (exerciseIds.length > 0) {
+      const { data, error } = await context.admin
+        .from('personal_exercises')
+        .select('id,name,personal_load')
+        .eq('user_id', context.userId)
+        .in('id', exerciseIds);
+      if (error) throw error;
+      exercises = data ?? [];
+    }
+
+    const exerciseById = new Map(exercises.map((exercise) => [exercise.id, exercise]));
+    const sections = selectedWorkouts.map((workout) => {
+      const workoutLinks = (links ?? []).filter(
+        ({ workout_id }: WorkoutExercise) => workout_id === workout.id,
+      );
+      if (workoutLinks.length === 0) return `${workout.name}: nenhum exercício cadastrado.`;
+
+      const rows = workoutLinks.map(({ personal_exercise_id }: WorkoutExercise, index: number) => {
+        const exercise = exerciseById.get(personal_exercise_id);
+        if (!exercise) return `${index + 1}. Exercício indisponível`;
+        const load = exercise.personal_load.trim() || 'carga não informada';
+        return `${index + 1}. ${exercise.name} — ${load}`;
+      });
+      return `${workout.name}:\n${rows.join('\n')}`;
+    });
+
+    return {
+      reply: sections.join('\n\n').slice(0, 4096),
+      action: 'list_workout_exercises',
+      input: requestedWorkout
+        ? { workout_id: requestedWorkout.id, workout_name: requestedWorkout.name }
+        : {},
+      result: { workouts: selectedWorkouts.length, exercises: exerciseIds.length },
     };
   }
 

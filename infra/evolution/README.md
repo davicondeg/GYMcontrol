@@ -26,6 +26,19 @@ Jhonny. Esta integração usa WhatsApp Web e não é uma API oficial da Meta.
 Não versione o arquivo `.env`, o QR Code ou os dados de sessão. Os volumes do
 Docker preservam a conexão local entre reinicializações.
 
+## Respostas sem túnel público
+
+O Supabase grava as respostas em uma fila segura. Para entregá-las pelo
+WhatsApp sem publicar a Evolution API na internet, mantenha também este comando
+rodando na raiz do repositório:
+
+```powershell
+npm run whatsapp:relay
+```
+
+O processo usa `EVOLUTION_RELAY_SECRET` do `.env` local e acessa a Evolution
+somente por `localhost`.
+
 ## Integração com o Supabase
 
 A instância deverá enviar o evento `MESSAGES_UPSERT` para:

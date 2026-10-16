@@ -51,3 +51,8 @@ https://alfqaabmbteqsumkheob.supabase.co/functions/v1/whatsapp-webhook?secret=EV
 Configure também `EVOLUTION_API_URL` com a URL HTTPS pública da Evolution e
 `EVOLUTION_API_KEY` com a chave global usada pela instalação. O evento enviado
 ao webhook deve ser `MESSAGES_UPSERT`.
+
+Enquanto a Evolution estiver apenas na rede local, defina
+`EVOLUTION_REPLY_ENABLED=false`. Nesse modo, as mensagens recebidas são
+processadas e registradas, mas nenhuma resposta automática é enviada. Só ative
+as respostas depois de disponibilizar uma rota HTTPS segura para a Evolution.

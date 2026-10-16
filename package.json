@@ -36,6 +36,8 @@
     "verify:supabase": "node scripts/verify-supabase.mjs",
     "sync:finance-env": "node scripts/sync-finance-env.mjs",
     "finance:web": "node scripts/serve-finance.mjs",
+    "whatsapp:setup-relay": "node scripts/setup-whatsapp-relay.mjs",
+    "whatsapp:relay": "node scripts/whatsapp-relay.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint"
   },

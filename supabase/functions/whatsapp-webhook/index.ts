@@ -41,7 +41,18 @@ async function sendMetaText(to: string, text: string) {
   if (!response.ok) throw new Error(`WhatsApp send failed: ${response.status}`);
 }
 
-async function sendEvolutionText(instance: string, to: string, message: string) {
+async function sendEvolutionText(admin: any, instance: string, to: string, message: string) {
+  if (Deno.env.get('EVOLUTION_REPLY_ENABLED') !== 'true') {
+    const { error } = await admin.from('bot_outbox').insert({
+      provider: 'evolution',
+      instance_name: instance,
+      recipient: to,
+      message_text: message,
+    });
+    if (error) throw error;
+    return;
+  }
+
   const baseUrl = env('EVOLUTION_API_URL').replace(/\/$/, '');
   const response = await fetch(`${baseUrl}/message/sendText/${encodeURIComponent(instance)}`, {
     method: 'POST',
@@ -51,9 +62,9 @@ async function sendEvolutionText(instance: string, to: string, message: string) 
   if (!response.ok) throw new Error(`Evolution send failed: ${response.status}`);
 }
 
-async function sendText(provider: MessageProvider, to: string, text: string) {
+async function sendText(admin: any, provider: MessageProvider, to: string, text: string) {
   if (provider.type === 'evolution') {
-    return sendEvolutionText(provider.instance, to, text);
+    return sendEvolutionText(admin, provider.instance, to, text);
   }
   return sendMetaText(to, text);
 }
@@ -136,13 +147,13 @@ Deno.serve(async (request: Request) => {
     const linkCode = text.match(/^(GYM|APP)-\d{6}$/i)?.[0];
     if (linkCode) {
       const { data: userId } = await admin.rpc('bot_link_whatsapp', { p_code: linkCode, p_wa_id: waId });
-      await sendText(provider, waId, userId ? 'WhatsApp conectado à sua conta GYMcontrol.' : 'Código inválido ou expirado. Gere um novo código no aplicativo.');
+      await sendText(admin, provider, waId, userId ? 'WhatsApp conectado à sua conta GYMcontrol.' : 'Código inválido ou expirado. Gere um novo código no aplicativo.');
       continue;
     }
 
     const { data: connection } = await admin.from('whatsapp_connections').select('user_id').eq('wa_id', waId).maybeSingle();
     if (!connection) {
-      await sendText(provider, waId, 'Conecte seu WhatsApp pelo aplicativo GYMcontrol antes de usar o bot.');
+      await sendText(admin, provider, waId, 'Conecte seu WhatsApp pelo aplicativo GYMcontrol antes de usar o bot.');
       continue;
     }
 
@@ -164,7 +175,7 @@ Deno.serve(async (request: Request) => {
       response = { reply: `Entendi que essa mensagem pertence ao módulo ${moduleName}, mas ele ainda não está disponível.` };
     } else if (route.intent === 'help') {
       response = {
-        reply: 'Posso registrar ou consultar água, hábitos e treinos da aba Hoje, além de enviar o link do GymControl. Exemplos: “bebi 500 ml”, “tomei creatina”, “quais hábitos fiz hoje?”, “listar meus treinos” e “concluí o treino A”.',
+        reply: 'Posso registrar ou consultar água, hábitos e treinos da aba Hoje, listar exercícios e cargas, além de enviar o link do GymControl. Exemplos: “bebi 500 ml”, “tomei creatina”, “quais hábitos fiz hoje?”, “listar meus treinos”, “exercícios do treino push” e “concluí o treino push”.',
       };
     } else {
       response = {
@@ -186,7 +197,7 @@ Deno.serve(async (request: Request) => {
       if (actionError) throw actionError;
     }
 
-    await sendText(provider, waId, response.reply);
+    await sendText(admin, provider, waId, response.reply);
     await admin.from('bot_messages').update({
       user_id: connection.user_id,
       module_code: route.module === 'assistant' ? null : route.module,
