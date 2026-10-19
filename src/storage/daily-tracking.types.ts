@@ -1,4 +1,5 @@
 export type CompletionColumn =
+  | 'workout_done'
   | 'breakfast_done'
   | 'morning_snack_done'
   | 'lunch_done'
@@ -25,6 +26,7 @@ export function createEmptyDailyTracking(date: string): DailyTracking {
   return {
     date,
     water_ml: 0,
+    workout_done: 0,
     breakfast_done: 0,
     morning_snack_done: 0,
     lunch_done: 0,

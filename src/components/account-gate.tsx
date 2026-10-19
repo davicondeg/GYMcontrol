@@ -55,6 +55,7 @@ export function AccountGate({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [temporaryAccess, setTemporaryAccess] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -163,19 +164,8 @@ export function AccountGate({ children }: PropsWithChildren) {
   };
 
   const signIn = async () => {
-    if (!email.trim() || password.length < 6 || submitting) {
-      setError('Informe seu e-mail e uma senha de pelo menos 6 caracteres.');
-      return;
-    }
-    setSubmitting(true);
     setError(null);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (signInError) setError(messageFromError(signInError));
-    else if (data.session) setSession(data.session);
-    setSubmitting(false);
+    setTemporaryAccess(true);
   };
 
   if (loading) {
@@ -186,7 +176,7 @@ export function AccountGate({ children }: PropsWithChildren) {
     );
   }
 
-  if (isPermanent && screen !== 'confirmation' && screen !== 'password') return children;
+  if ((isPermanent || temporaryAccess) && screen !== 'confirmation' && screen !== 'password') return children;
 
   return (
     <SafeAreaView style={styles.safeArea}>

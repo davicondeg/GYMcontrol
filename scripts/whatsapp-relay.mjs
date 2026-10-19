@@ -37,12 +37,16 @@ async function acknowledge(id, success, error) {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-relay-secret': relaySecret },
     body: JSON.stringify({ id, success, error }),
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error(`Falha ao confirmar o envio: HTTP ${response.status}`);
 }
 
 async function poll() {
-  const response = await fetch(relayUrl, { headers: { 'x-relay-secret': relaySecret } });
+  const response = await fetch(relayUrl, {
+    headers: { 'x-relay-secret': relaySecret },
+    signal: AbortSignal.timeout(8000),
+  });
   if (response.status === 204) return false;
   if (!response.ok) throw new Error(`Falha ao consultar a fila: HTTP ${response.status}`);
 
@@ -52,6 +56,7 @@ async function poll() {
       method: 'POST',
       headers: { apikey: evolutionApiKey, 'content-type': 'application/json' },
       body: JSON.stringify({ number: job.recipient, text: job.message_text }),
+      signal: AbortSignal.timeout(10000),
     });
     if (!sendResponse.ok) throw new Error(`Evolution respondeu HTTP ${sendResponse.status}`);
     await acknowledge(job.id, true);
@@ -67,9 +72,9 @@ console.log('Relay do Jhonny iniciado. Use Ctrl+C para encerrar.');
 while (running) {
   try {
     const delivered = await poll();
-    if (!delivered) await new Promise((resolve) => setTimeout(resolve, 2000));
+    if (!delivered) await new Promise((resolve) => setTimeout(resolve, 500));
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }

@@ -14,6 +14,7 @@ classifica a mensagem e encaminha a operação ao módulo responsável.
 - marca, desmarca e consulta um treino pelo nome;
 - envia o link permanente do GymControl quando configurado;
 - reconhece mensagens dos futuros módulos Agenda e Financeiro sem registrar dados incorretos;
+- conversa sobre assuntos gerais pelo Gemini quando a mensagem não exige dados do aplicativo;
 - responde em português pelo WhatsApp.
 
 ## Segredos necessários
@@ -26,8 +27,11 @@ Configure no Supabase antes de publicar a função:
 - `WHATSAPP_ACCESS_TOKEN`
 - `GYMCONTROL_APP_URL` (endereço público e permanente do aplicativo)
 
-A chave do Gemini será adicionada em uma etapa posterior. Nenhum segredo deve ser
-incluído no aplicativo, nos arquivos versionados ou em variáveis `EXPO_PUBLIC_*`.
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (opcional; usa `gemini-flash-lite-latest` por padrão)
+
+Nenhum segredo deve ser incluído no aplicativo, nos arquivos versionados ou em
+variáveis `EXPO_PUBLIC_*`.
 
 ## Organização dos módulos
 
@@ -56,3 +60,16 @@ Enquanto a Evolution estiver apenas na rede local, defina
 `EVOLUTION_REPLY_ENABLED=false`. Nesse modo, as mensagens recebidas são
 processadas e registradas, mas nenhuma resposta automática é enviada. Só ative
 as respostas depois de disponibilizar uma rota HTTPS segura para a Evolution.
+
+## Interpretação com Gemini
+
+As regras determinísticas são avaliadas primeiro. Quando nenhuma regra reconhece
+a mensagem, o Gemini classifica a solicitação dentro de uma lista fechada de
+intenções. Se o assunto não exigir uma ação do aplicativo, ele produz uma
+resposta curta de conversa geral. Comandos que consultam ou alteram registros
+continuam limitados às intenções validadas pelo servidor. A chave nunca deve ser
+incluída no cliente ou no Git.
+
+As respostas do Gemini têm saída limitada e tempo máximo de doze segundos. Uma
+segunda tentativa curta ocorre apenas quando o serviço informa sobrecarga.
+Saudações e apresentações comuns são respondidas localmente, sem consumir a API.

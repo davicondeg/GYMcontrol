@@ -17,15 +17,19 @@ export function routeMessage(text: string): RoutedIntent {
     return { module: 'gym', intent: 'add_water', confidence: 1, entities: { amountMl: waterAmount } };
   }
 
-  if (/quanto.*(água|agua)|total.*(água|agua)/i.test(normalized)) {
+  if (
+    /quanto.*(água|agua)|total.*(água|agua)|(como|qual).*(hidratação|hidratacao)|(hidratação|hidratacao).*(hoje|agora|por enquanto|indo|estou)/i.test(normalized)
+  ) {
     return { module: 'gym', intent: 'query_water', confidence: 0.98, entities: {} };
   }
 
-  if (/(exercícios|exercicios|cargas?).*(treinos?)|(treinos?).*(exercícios|exercicios|cargas?)/i.test(normalized)) {
+  if (
+    /(exercícios|exercicios|cargas?).*(treinos?)|(treinos?).*(exercícios|exercicios|cargas?)|(o que|que).*(coloquei|tem|há|ha).*(treinos?)|(treinos?).*(o que|que).*(coloquei|tem|há|ha)/i.test(normalized)
+  ) {
     return { module: 'gym', intent: 'list_workout_exercises', confidence: 0.97, entities: {} };
   }
 
-  if (/(quais|listar|mostre|ver).*(meus )?treinos|^(meus )?treinos[?!. ]*$/i.test(normalized)) {
+  if (/(quais|listar|mostre|ver).*(meus )?treinos|quais treinos.*(tenho|existem)|^(meus )?treinos[?!. ]*$/i.test(normalized)) {
     return { module: 'gym', intent: 'list_workouts', confidence: 0.96, entities: {} };
   }
 
@@ -75,8 +79,22 @@ export function routeMessage(text: string): RoutedIntent {
     return { module: 'agenda', intent: 'module_not_available', confidence: 0.75, entities: {} };
   }
 
-  if (/^(ajuda|menu|o que você faz|o que voce faz)[?!. ]*$/i.test(normalized)) {
+  if (/^(ajuda|menu|o que você faz|o que voce faz|como você pode me ajudar|como voce pode me ajudar|do que você é capaz|do que voce e capaz)[?!. ]*$/i.test(normalized)) {
     return { module: 'assistant', intent: 'help', confidence: 1, entities: {} };
+  }
+
+  if (/^(oi|olá|ola|e aí|e ai|bom dia|boa tarde|boa noite|fala)(,? (jhonny|johnny))?[?!. ]*$/i.test(normalized)) {
+    return {
+      module: 'assistant', intent: 'general_chat', confidence: 1,
+      entities: { reply: 'Olá! Sou o Jhonny. Como posso ajudar você hoje?' },
+    };
+  }
+
+  if (/^(quem (é|e) você|quem (é|e) voce|qual (é|e) o seu nome)[?!. ]*$/i.test(normalized)) {
+    return {
+      module: 'assistant', intent: 'general_chat', confidence: 1,
+      entities: { reply: 'Sou o Jhonny, seu assistente pessoal integrado ao GymControl.' },
+    };
   }
 
   return { module: 'assistant', intent: 'unknown', confidence: 0, entities: {} };

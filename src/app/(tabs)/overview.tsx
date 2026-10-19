@@ -19,8 +19,6 @@ import { createDefaultGoals, type GoalVersion } from '@/storage/goals.types';
 import { useDailyTrackingStorage } from '@/storage/use-daily-tracking-storage';
 import { useGoalsStorage } from '@/storage/use-goals-storage';
 import { useHabitsStorage } from '@/storage/use-habits-storage';
-import { useWorkoutsStorage } from '@/storage/use-workouts-storage';
-import type { WorkoutSession } from '@/storage/workouts.types';
 import { colors } from '@/theme/colors';
 
 const DAYS_IN_PERIOD = 7;
@@ -31,6 +29,7 @@ type DaySummary = {
   dayLabel: string;
   dayNumber: string;
   adherence: number;
+  trained: boolean;
   waterMl: number;
   completedHabits: number;
 };
@@ -84,12 +83,10 @@ export default function OverviewScreen() {
   const trackingStorage = useDailyTrackingStorage();
   const habitsStorage = useHabitsStorage();
   const goalsStorage = useGoalsStorage();
-  const workoutsStorage = useWorkoutsStorage();
   const [trackings, setTrackings] = useState<DailyTracking[]>([]);
   const [completions, setCompletions] = useState<HabitCompletion[]>([]);
   const [habitItems, setHabitItems] = useState<HabitItem[]>([]);
   const [goalVersions, setGoalVersions] = useState<GoalVersion[]>([]);
-  const [workoutSessions, setWorkoutSessions] = useState<WorkoutSession[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isEditingGoals, setIsEditingGoals] = useState(false);
   const [isGoalsOnboarding, setIsGoalsOnboarding] = useState(false);
@@ -106,19 +103,17 @@ export default function OverviewScreen() {
       const today = new Date();
       const endDate = getLocalDateKey(today);
       const historyStartDate = getLocalDateKey(addDays(today, -364));
-      const [trackingHistory, completionHistory, items, goals, sessions] = await Promise.all([
+      const [trackingHistory, completionHistory, items, goals] = await Promise.all([
         trackingStorage.listBetween(historyStartDate, endDate),
         habitsStorage.listCompletionsBetween(historyStartDate, endDate),
         habitsStorage.listItems(),
         goalsStorage.list(),
-        workoutsStorage.listSessionsBetween(historyStartDate, endDate),
       ]);
 
       setTrackings(trackingHistory);
       setCompletions(completionHistory);
       setHabitItems(items);
       setGoalVersions(goals);
-      setWorkoutSessions(sessions);
       if (goals.length === 0) {
         const suggestedGoals = createDefaultGoals(endDate);
         setGoalDrafts({
@@ -135,7 +130,7 @@ export default function OverviewScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [goalsStorage, habitsStorage, trackingStorage, workoutsStorage]);
+  }, [goalsStorage, habitsStorage, trackingStorage]);
 
   useFocusEffect(
     useCallback(() => {
@@ -187,6 +182,7 @@ export default function OverviewScreen() {
         dayLabel: WEEKDAY_LABELS[date.getDay()],
         dayNumber: String(date.getDate()).padStart(2, '0'),
         adherence,
+        trained: trackingByDate.get(dateKey)?.workout_done === 1,
         waterMl,
         completedHabits,
       };
@@ -208,8 +204,10 @@ export default function OverviewScreen() {
     const waterDaysMet = days.filter(
       (day) => currentGoals.water_goal_ml > 0 && day.waterMl >= currentGoals.water_goal_ml,
     ).length;
-    const workoutsCompleted = workoutSessions.filter((session) => periodDates.has(session.date)).length;
-    const workoutDates = new Set(workoutSessions.map((session) => session.date));
+    const workoutDates = new Set(
+      trackings.filter((tracking) => tracking.workout_done === 1).map((tracking) => tracking.date),
+    );
+    const workoutsCompleted = [...workoutDates].filter((date) => periodDates.has(date)).length;
     const mealTargetTotal = currentGoals.meal_target_daily * DAYS_IN_PERIOD;
     const supplementTargetTotal = currentGoals.supplement_target_daily * DAYS_IN_PERIOD;
     const goalResults = [
@@ -283,7 +281,7 @@ export default function OverviewScreen() {
       waterDaysMet,
       workoutsCompleted,
     };
-  }, [completions, goalVersions, habitItems, trackings, workoutSessions]);
+  }, [completions, goalVersions, habitItems, trackings]);
 
   const selectedDay = metrics.days.find((day) => day.date === selectedDate) ?? null;
 
@@ -433,7 +431,7 @@ export default function OverviewScreen() {
               <View style={styles.chartFeedback}>
                 <Text style={styles.chartFeedbackText}>
                   {selectedDay
-                    ? `${selectedDay.dayLabel}, dia ${selectedDay.dayNumber}  •  ${selectedDay.adherence}% de adesão`
+                    ? `${selectedDay.dayLabel}, dia ${selectedDay.dayNumber}  •  Treino: ${selectedDay.trained ? 'sim' : 'não'}  •  ${selectedDay.adherence}% de adesão`
                     : 'Selecione um dia para ver o resultado'}
                 </Text>
               </View>

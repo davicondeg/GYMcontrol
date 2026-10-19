@@ -17,8 +17,6 @@ import { useDailyTrackingStorage } from '@/storage/use-daily-tracking-storage';
 import { useHabitsStorage } from '@/storage/use-habits-storage';
 import { getWaterIncrements } from '@/storage/water-settings.types';
 import { useWaterSettingsStorage } from '@/storage/use-water-settings-storage';
-import { useWorkoutsStorage } from '@/storage/use-workouts-storage';
-import type { WorkoutSummary } from '@/storage/workouts.types';
 import { colors } from '@/theme/colors';
 
 const WATER_GOAL_ML = 3000;
@@ -77,7 +75,6 @@ export default function TodayScreen() {
   const storage = useDailyTrackingStorage();
   const habitsStorage = useHabitsStorage();
   const waterSettingsStorage = useWaterSettingsStorage();
-  const workoutsStorage = useWorkoutsStorage();
   const [tracking, setTracking] = useState<DailyTracking | null>(null);
   const [waterIncrements, setWaterIncrements] = useState<[number, number, number]>([
     500, 800, 1000,
@@ -89,22 +86,17 @@ export default function TodayScreen() {
   const [habitDrafts, setHabitDrafts] = useState<EditableHabitItem[]>([]);
   const [customizingHabit, setCustomizingHabit] = useState<'meals' | 'supplements' | null>(null);
   const [waterAdditions, setWaterAdditions] = useState<number[]>([]);
-  const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
-  const [completedWorkoutIds, setCompletedWorkoutIds] = useState<Set<number>>(new Set());
-  const [updatingWorkoutId, setUpdatingWorkoutId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadToday = useCallback(async () => {
     try {
       const date = getLocalDateKey();
-      const [result, waterSettings, items, completions, workoutItems, workoutSessions] = await Promise.all([
+      const [result, waterSettings, items, completions] = await Promise.all([
         storage.getOrCreate(date),
         waterSettingsStorage.get(),
         habitsStorage.listItems(),
         habitsStorage.listCompletions(date),
-        workoutsStorage.list(),
-        workoutsStorage.listSessionsBetween(date, date),
       ]);
 
       setTracking(result);
@@ -115,13 +107,11 @@ export default function TodayScreen() {
       setHabitCompletions(
         Object.fromEntries(completions.map((completion) => [completion.habit_id, completion.done])),
       );
-      setWorkouts(workoutItems);
-      setCompletedWorkoutIds(new Set(workoutSessions.map((session) => session.workout_id)));
       setWaterAdditions([]);
     } catch {
       setError('Não foi possível carregar os dados de hoje.');
     }
-  }, [habitsStorage, storage, waterSettingsStorage, workoutsStorage]);
+  }, [habitsStorage, storage, waterSettingsStorage]);
 
   useEffect(() => {
     // SQLite is an external data source; loadToday updates state after its asynchronous read.
@@ -193,23 +183,18 @@ export default function TodayScreen() {
     }
   };
 
-  const toggleWorkout = async (workout: WorkoutSummary) => {
-    if (!tracking || updatingWorkoutId !== null) return;
-    const nextValue = !completedWorkoutIds.has(workout.id);
-    setUpdatingWorkoutId(workout.id);
+  const toggleWorkout = async () => {
+    if (!tracking || isSaving) return;
+    const nextValue = tracking.workout_done === 1 ? 0 : 1;
+    setIsSaving(true);
     setError(null);
     try {
-      await workoutsStorage.setCompletedOn(workout.id, tracking.date, nextValue);
-      setCompletedWorkoutIds((current) => {
-        const next = new Set(current);
-        if (nextValue) next.add(workout.id);
-        else next.delete(workout.id);
-        return next;
-      });
+      await storage.setCompletion(tracking.date, 'workout_done', nextValue);
+      setTracking((current) => current ? { ...current, workout_done: nextValue } : current);
     } catch {
       setError('Não foi possível atualizar o treino de hoje.');
     } finally {
-      setUpdatingWorkoutId(null);
+      setIsSaving(false);
     }
   };
 
@@ -338,7 +323,6 @@ export default function TodayScreen() {
   const completedSupplements = supplementItems.filter(
     (item) => habitCompletions[item.id] === 1,
   ).length;
-  const completedWorkouts = workouts.filter((workout) => completedWorkoutIds.has(workout.id)).length;
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -576,29 +560,20 @@ export default function TodayScreen() {
           <View style={[styles.cardHeader, styles.compactCardHeader]}>
             <View>
               <Text style={styles.sectionTitle}>Treino de hoje</Text>
-              <Text style={styles.workoutSectionHint}>Marque os treinos realizados hoje.</Text>
+              <Text style={styles.workoutSectionHint}>Registre se você treinou neste dia.</Text>
             </View>
-            <Text style={styles.counter}>{completedWorkouts}/{workouts.length}</Text>
+            <Text style={styles.counter}>{tracking.workout_done === 1 ? 'Sim' : 'Não'}</Text>
           </View>
 
-          {workouts.length > 0 ? (
-            <View style={styles.checkList}>
-              {workouts.map((workout, index) => (
-                <CheckItem
-                  checked={completedWorkoutIds.has(workout.id)}
-                  disabled={updatingWorkoutId !== null}
-                  isLast={index === workouts.length - 1}
-                  key={workout.id}
-                  label={workout.name}
-                  onPress={() => void toggleWorkout(workout)}
-                />
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyWorkoutText}>
-              Crie um treino na aba Treinos para registrá-lo aqui.
-            </Text>
-          )}
+          <View style={styles.checkList}>
+            <CheckItem
+              checked={tracking.workout_done === 1}
+              disabled={isSaving}
+              isLast
+              label="Treinei hoje"
+              onPress={() => void toggleWorkout()}
+            />
+          </View>
         </View>
 
         <View style={[styles.card, styles.compactCard]}>
@@ -771,13 +746,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 3,
     fontSize: 11,
-  },
-  emptyWorkoutText: {
-    color: colors.textSecondary,
-    paddingVertical: 12,
-    textAlign: 'center',
-    fontSize: 13,
-    lineHeight: 18,
   },
   waterPercentage: {
     color: colors.water,
