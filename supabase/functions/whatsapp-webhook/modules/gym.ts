@@ -101,21 +101,41 @@ function availableWorkoutsReply(workouts: Workout[]) {
   return `Não identifiquei qual treino você quis dizer. Seus treinos são: ${workouts.map(({ name }) => name).join(', ')}.`;
 }
 
+function resolveTargetDate(referenceDate: string, value: unknown) {
+  const offset = Number(value ?? 0);
+  const safeOffset = Number.isInteger(offset) && offset <= 0 && offset >= -3650 ? offset : 0;
+  const date = new Date(`${referenceDate}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + safeOffset);
+  return date.toISOString().slice(0, 10);
+}
+
+function dateLabel(referenceDate: string, targetDate: string) {
+  if (targetDate === referenceDate) return 'hoje';
+  const yesterday = new Date(`${referenceDate}T12:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  if (targetDate === yesterday.toISOString().slice(0, 10)) return 'ontem';
+  const [year, month, day] = targetDate.split('-');
+  return `em ${day}/${month}/${year}`;
+}
+
 export async function handleGymIntent(
   context: BotContext,
   route: RoutedIntent,
 ): Promise<ModuleResult> {
+  const targetDate = resolveTargetDate(context.date, route.entities.dateOffsetDays);
+  const targetDateLabel = dateLabel(context.date, targetDate);
+
   if (route.intent === 'add_water') {
     const amount = Number(route.entities.amountMl);
     const { data: total, error } = await context.admin.rpc('bot_add_water', {
       p_user_id: context.userId,
-      p_date: context.date,
+      p_date: targetDate,
       p_amount: amount,
     });
     if (error) throw error;
 
     return {
-      reply: `Registrei ${amount} ml. Seu total de hoje é ${total} ml.`,
+      reply: `Registrei ${amount} ml ${targetDateLabel}. O total desse dia é ${total} ml.`,
       action: 'add_water',
       input: { amount_ml: amount },
       result: { total_ml: total },
@@ -127,13 +147,13 @@ export async function handleGymIntent(
       .from('daily_tracking')
       .select('water_ml')
       .eq('user_id', context.userId)
-      .eq('date', context.date)
+      .eq('date', targetDate)
       .maybeSingle();
     if (error) throw error;
 
     const total = data?.water_ml ?? 0;
     return {
-      reply: `Você registrou ${total} ml de água hoje.`,
+      reply: `Você registrou ${total} ml de água ${targetDateLabel}.`,
       action: 'query_water',
       result: { total_ml: total },
     };
@@ -147,7 +167,7 @@ export async function handleGymIntent(
     const done = route.entities.done === true ? 1 : 0;
     const { error } = await context.admin.from('daily_habit_completions').upsert({
       user_id: context.userId,
-      date: context.date,
+      date: targetDate,
       habit_id: habit.id,
       done,
       updated_at: new Date().toISOString(),
@@ -156,11 +176,11 @@ export async function handleGymIntent(
 
     return {
       reply: done === 1
-        ? `Marquei “${habit.label}” como concluído hoje.`
-        : `Desmarquei “${habit.label}” de hoje.`,
+        ? `Marquei “${habit.label}” como concluído ${targetDateLabel}.`
+        : `Desmarquei “${habit.label}” de ${targetDateLabel}.`,
       action: 'set_habit_completion',
       input: { habit_id: habit.id, habit_label: habit.label, done },
-      result: { date: context.date },
+      result: { date: targetDate },
     };
   }
 
@@ -173,7 +193,7 @@ export async function handleGymIntent(
       .from('daily_habit_completions')
       .select('done')
       .eq('user_id', context.userId)
-      .eq('date', context.date)
+      .eq('date', targetDate)
       .eq('habit_id', habit.id)
       .maybeSingle();
     if (error) throw error;
@@ -181,11 +201,11 @@ export async function handleGymIntent(
     const done = data?.done === 1;
     return {
       reply: done
-        ? `Sim. “${habit.label}” está marcado como concluído hoje.`
-        : `Não. “${habit.label}” ainda não está marcado como concluído hoje.`,
+        ? `Sim. “${habit.label}” está marcado como concluído ${targetDateLabel}.`
+        : `Não. “${habit.label}” não está marcado como concluído ${targetDateLabel}.`,
       action: 'query_habit_completion',
       input: { habit_id: habit.id, habit_label: habit.label },
-      result: { done, date: context.date },
+      result: { done, date: targetDate },
     };
   }
 
@@ -197,7 +217,7 @@ export async function handleGymIntent(
       .from('daily_habit_completions')
       .select('habit_id,done')
       .eq('user_id', context.userId)
-      .eq('date', context.date);
+      .eq('date', targetDate);
     if (error) throw error;
 
     const completedIds = new Set(
@@ -206,6 +226,7 @@ export async function handleGymIntent(
     const completed = habits.filter(({ id }) => completedIds.has(id));
     const pending = habits.filter(({ id }) => !completedIds.has(id));
     const parts = [
+      `Resumo de ${targetDateLabel}:`,
       completed.length > 0 ? `Concluídos: ${completed.map(({ label }) => label).join(', ')}.` : 'Nenhum hábito concluído.',
       pending.length > 0 ? `Pendentes: ${pending.map(({ label }) => label).join(', ')}.` : 'Nenhum hábito pendente.',
     ];
@@ -213,7 +234,7 @@ export async function handleGymIntent(
     return {
       reply: parts.join('\n'),
       action: 'query_habits_today',
-      result: { completed: completed.length, pending: pending.length, date: context.date },
+      result: { completed: completed.length, pending: pending.length, date: targetDate },
     };
   }
 
@@ -225,7 +246,7 @@ export async function handleGymIntent(
       .from('workout_sessions')
       .select('workout_id')
       .eq('user_id', context.userId)
-      .eq('date', context.date);
+      .eq('date', targetDate);
     if (error) throw error;
 
     const completedIds = new Set((data ?? []).map(({ workout_id }: { workout_id: number }) => workout_id));
@@ -233,13 +254,13 @@ export async function handleGymIntent(
       .map((workout) => `${completedIds.has(workout.id) ? 'Concluído' : 'Pendente'} — ${workout.name}`)
       .join('\n');
     const introduction = route.intent === 'workout_today'
-      ? 'Você ainda não definiu dias da semana para cada treino. Estes são seus treinos e o estado de hoje:'
-      : 'Seus treinos hoje:';
+      ? `Você ainda não definiu dias da semana para cada treino. Estes são seus treinos e o estado de ${targetDateLabel}:`
+      : `Seus treinos em relação a ${targetDateLabel}:`;
 
     return {
       reply: `${introduction}\n${list}`,
       action: 'list_workouts',
-      result: { total: workouts.length, completed_today: completedIds.size, date: context.date },
+      result: { total: workouts.length, completed: completedIds.size, date: targetDate },
     };
   }
 
@@ -309,9 +330,9 @@ export async function handleGymIntent(
     if (done) {
       const { error } = await context.admin.from('workout_sessions').upsert({
         user_id: context.userId,
-        key: `${workout.id}:${context.date}`,
+        key: `${workout.id}:${targetDate}`,
         workout_id: workout.id,
-        date: context.date,
+        date: targetDate,
         completed_at: new Date().toISOString(),
       }, { onConflict: 'user_id,workout_id,date' });
       if (error) throw error;
@@ -321,17 +342,17 @@ export async function handleGymIntent(
         .delete()
         .eq('user_id', context.userId)
         .eq('workout_id', workout.id)
-        .eq('date', context.date);
+        .eq('date', targetDate);
       if (error) throw error;
     }
 
     return {
       reply: done
-        ? `Marquei o treino “${workout.name}” como concluído hoje.`
-        : `Desmarquei o treino “${workout.name}” de hoje.`,
+        ? `Marquei o treino “${workout.name}” como concluído ${targetDateLabel}.`
+        : `Desmarquei o treino “${workout.name}” de ${targetDateLabel}.`,
       action: 'set_workout_completion',
       input: { workout_id: workout.id, workout_name: workout.name, done },
-      result: { date: context.date },
+      result: { date: targetDate },
     };
   }
 
@@ -345,18 +366,18 @@ export async function handleGymIntent(
       .select('workout_id')
       .eq('user_id', context.userId)
       .eq('workout_id', workout.id)
-      .eq('date', context.date)
+      .eq('date', targetDate)
       .maybeSingle();
     if (error) throw error;
 
     const done = Boolean(data);
     return {
       reply: done
-        ? `Sim. O treino “${workout.name}” está concluído hoje.`
-        : `Não. O treino “${workout.name}” ainda não está concluído hoje.`,
+        ? `Sim. O treino “${workout.name}” está concluído ${targetDateLabel}.`
+        : `Não. O treino “${workout.name}” não está concluído ${targetDateLabel}.`,
       action: 'query_workout_completion',
       input: { workout_id: workout.id, workout_name: workout.name },
-      result: { done, date: context.date },
+      result: { done, date: targetDate },
     };
   }
 

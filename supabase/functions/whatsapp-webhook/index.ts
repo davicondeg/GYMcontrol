@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { classifyWithGemini } from './gemini.ts';
 import { handleGymIntent } from './modules/gym.ts';
-import { routeMessage } from './router.ts';
+import { routeMessage, withTemporalContext } from './router.ts';
 import type { IncomingMessage, MessageProvider, ModuleResult } from './types.ts';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
@@ -158,10 +158,12 @@ Deno.serve(async (request: Request) => {
       continue;
     }
 
+    const referenceDate = localDate();
     const deterministicRoute = routeMessage(text);
-    const route = deterministicRoute.intent === 'unknown'
-      ? await classifyWithGemini(text) ?? deterministicRoute
+    const classifiedRoute = deterministicRoute.intent === 'unknown'
+      ? await classifyWithGemini(text, referenceDate) ?? deterministicRoute
       : deterministicRoute;
+    const route = withTemporalContext(text, referenceDate, classifiedRoute);
     let response: ModuleResult;
 
     if (route.module === 'gym') {
@@ -171,7 +173,7 @@ Deno.serve(async (request: Request) => {
         userId: connection.user_id,
         waId,
         text,
-        date: localDate(),
+        date: referenceDate,
         gymControlUrl: Deno.env.get('GYMCONTROL_APP_URL') ?? undefined,
       }, route);
     } else if (route.intent === 'module_not_available') {
@@ -179,7 +181,7 @@ Deno.serve(async (request: Request) => {
       response = { reply: `Entendi que essa mensagem pertence ao módulo ${moduleName}, mas ele ainda não está disponível.` };
     } else if (route.intent === 'help') {
       response = {
-        reply: 'Posso conversar com você e também registrar ou consultar água, hábitos e treinos da aba Hoje, listar exercícios e cargas e enviar o link do GymControl. Exemplos: “bebi 500 ml”, “quais hábitos fiz hoje?”, “exercícios do treino push” e “concluí o treino push”.',
+        reply: 'Posso conversar com você e também registrar ou consultar água, hábitos e treinos, inclusive em datas passadas, listar exercícios e cargas e enviar o link do GymControl. Exemplos: “bebi 500 ml”, “tomei creatina ontem”, “eu treinei anteontem?” e “quais hábitos fiz hoje?”.',
       };
     } else if (route.intent === 'general_chat' && typeof route.entities.reply === 'string') {
       response = { reply: route.entities.reply };

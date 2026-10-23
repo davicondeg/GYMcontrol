@@ -2,6 +2,7 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { AccountGate } from '@/components/account-gate';
+import { GoalsOnboardingGate } from '@/components/goals-onboarding-gate';
 import { DatabaseProvider } from '@/db/database-provider';
 import { colors } from '@/theme/colors';
 
@@ -21,12 +22,14 @@ export default function RootLayout() {
   return (
     <DatabaseProvider>
       <AccountGate>
-        <ThemeProvider value={navigationTheme}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-          </Stack>
-          <StatusBar style="light" />
-        </ThemeProvider>
+        <GoalsOnboardingGate>
+          <ThemeProvider value={navigationTheme}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+            <StatusBar style="light" />
+          </ThemeProvider>
+        </GoalsOnboardingGate>
       </AccountGate>
     </DatabaseProvider>
   );

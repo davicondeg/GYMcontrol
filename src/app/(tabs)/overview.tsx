@@ -89,7 +89,6 @@ export default function OverviewScreen() {
   const [goalVersions, setGoalVersions] = useState<GoalVersion[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isEditingGoals, setIsEditingGoals] = useState(false);
-  const [isGoalsOnboarding, setIsGoalsOnboarding] = useState(false);
   const [isSavingGoals, setIsSavingGoals] = useState(false);
   const [goalDrafts, setGoalDrafts] = useState({ workouts: '3', water: '3000', meals: '6', supplements: '2' });
   const [isLoading, setIsLoading] = useState(true);
@@ -114,17 +113,6 @@ export default function OverviewScreen() {
       setCompletions(completionHistory);
       setHabitItems(items);
       setGoalVersions(goals);
-      if (goals.length === 0) {
-        const suggestedGoals = createDefaultGoals(endDate);
-        setGoalDrafts({
-          workouts: String(suggestedGoals.workout_target_weekly),
-          water: String(suggestedGoals.water_goal_ml),
-          meals: String(suggestedGoals.meal_target_daily),
-          supplements: String(suggestedGoals.supplement_target_daily),
-        });
-        setIsGoalsOnboarding(true);
-        setIsEditingGoals(true);
-      }
     } catch {
       setError('Não foi possível carregar os dados da visão geral.');
     } finally {
@@ -293,20 +281,16 @@ export default function OverviewScreen() {
       supplements: String(metrics.currentGoals.supplement_target_daily),
     });
     setError(null);
-    setIsGoalsOnboarding(false);
     setIsEditingGoals(true);
   };
 
-  const saveGoals = async (useSuggestedGoals = false) => {
+  const saveGoals = async () => {
     if (isSavingGoals) return;
-    const suggestedGoals = createDefaultGoals(getLocalDateKey(new Date()));
     const values = {
-      workouts: useSuggestedGoals ? suggestedGoals.workout_target_weekly : Number(goalDrafts.workouts),
-      water: useSuggestedGoals ? suggestedGoals.water_goal_ml : Number(goalDrafts.water),
-      meals: useSuggestedGoals ? suggestedGoals.meal_target_daily : Number(goalDrafts.meals),
-      supplements: useSuggestedGoals
-        ? suggestedGoals.supplement_target_daily
-        : Number(goalDrafts.supplements),
+      workouts: Number(goalDrafts.workouts),
+      water: Number(goalDrafts.water),
+      meals: Number(goalDrafts.meals),
+      supplements: Number(goalDrafts.supplements),
     };
     const isValid =
       Number.isInteger(values.workouts) && values.workouts >= 0 && values.workouts <= 14 &&
@@ -328,7 +312,6 @@ export default function OverviewScreen() {
         supplement_target_daily: values.supplements,
       });
       setIsEditingGoals(false);
-      setIsGoalsOnboarding(false);
       await load();
     } catch {
       setError('Não foi possível salvar suas metas.');
@@ -487,9 +470,7 @@ export default function OverviewScreen() {
 
       <Modal
         animationType="fade"
-        onRequestClose={() => {
-          if (!isGoalsOnboarding) setIsEditingGoals(false);
-        }}
+        onRequestClose={() => setIsEditingGoals(false)}
         transparent
         visible={isEditingGoals}>
         <ScrollView contentContainerStyle={styles.modalBackdrop} keyboardShouldPersistTaps="handled">
@@ -497,19 +478,15 @@ export default function OverviewScreen() {
             <View style={styles.modalHeader}>
               <View style={styles.chartHeading}>
                 <Text style={styles.modalTitle}>
-                  {isGoalsOnboarding ? 'Defina suas metas' : 'Minhas metas'}
+                  Minhas metas
                 </Text>
                 <Text style={styles.chartSubtitle}>
-                  {isGoalsOnboarding
-                    ? 'Personalize como seu desempenho deve ser avaliado.'
-                    : 'Os novos valores passam a valer a partir de hoje.'}
+                  Os novos valores passam a valer a partir de hoje.
                 </Text>
               </View>
-              {!isGoalsOnboarding ? (
-                <Pressable onPress={() => setIsEditingGoals(false)} style={styles.closeButton}>
-                  <Text style={styles.closeText}>×</Text>
-                </Pressable>
-              ) : null}
+              <Pressable onPress={() => setIsEditingGoals(false)} style={styles.closeButton}>
+                <Text style={styles.closeText}>×</Text>
+              </Pressable>
             </View>
 
             {[
@@ -541,25 +518,13 @@ export default function OverviewScreen() {
             <View style={styles.modalActions}>
               <Pressable
                 disabled={isSavingGoals}
-                onPress={() => {
-                  if (isGoalsOnboarding) {
-                    void saveGoals(true);
-                  } else {
-                    setIsEditingGoals(false);
-                  }
-                }}
+                onPress={() => setIsEditingGoals(false)}
                 style={styles.cancelButton}>
-                <Text style={styles.cancelText}>
-                  {isGoalsOnboarding ? 'Usar sugestões' : 'Cancelar'}
-                </Text>
+                <Text style={styles.cancelText}>Cancelar</Text>
               </Pressable>
               <Pressable disabled={isSavingGoals} onPress={() => void saveGoals()} style={styles.saveButton}>
                 <Text style={styles.saveText}>
-                  {isSavingGoals
-                    ? 'Salvando...'
-                    : isGoalsOnboarding
-                      ? 'Salvar e continuar'
-                      : 'Salvar metas'}
+                  {isSavingGoals ? 'Salvando...' : 'Salvar metas'}
                 </Text>
               </Pressable>
             </View>

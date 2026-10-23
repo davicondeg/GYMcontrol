@@ -1,5 +1,54 @@
 import type { RoutedIntent } from './types.ts';
 
+function dateOffsetFromText(text: string, referenceDate: string) {
+  const normalized = text.toLowerCase().trim();
+  if (/\bdepois de amanhã(?:\s|$)/i.test(normalized)) return 2;
+  if (/\bamanhã(?:\s|$)/i.test(normalized)) return 1;
+  if (/\banteontem\b/i.test(normalized)) return -2;
+  if (/\bontem\b/i.test(normalized)) return -1;
+  if (/\bhoje\b/i.test(normalized)) return 0;
+
+  const daysAgo = normalized.match(/\bhá\s+(\d{1,4})\s+dias?\b|\bha\s+(\d{1,4})\s+dias?\b/i);
+  if (daysAgo) return -Number(daysAgo[1] ?? daysAgo[2]);
+
+  const explicitDate = normalized.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\b/);
+  if (!explicitDate) return null;
+  const reference = new Date(`${referenceDate}T12:00:00Z`);
+  const yearValue = explicitDate[3] ? Number(explicitDate[3]) : reference.getUTCFullYear();
+  const year = yearValue < 100 ? 2000 + yearValue : yearValue;
+  const target = new Date(Date.UTC(year, Number(explicitDate[2]) - 1, Number(explicitDate[1]), 12));
+  if (
+    target.getUTCFullYear() !== year ||
+    target.getUTCMonth() !== Number(explicitDate[2]) - 1 ||
+    target.getUTCDate() !== Number(explicitDate[1])
+  ) return Number.NaN;
+  return Math.round((target.getTime() - reference.getTime()) / 86400000);
+}
+
+export function withTemporalContext(text: string, referenceDate: string, route: RoutedIntent) {
+  const parsedOffset = dateOffsetFromText(text, referenceDate);
+  const modelOffset = Number(route.entities.dateOffsetDays);
+  const dateOffsetDays = parsedOffset ?? (Number.isInteger(modelOffset) ? modelOffset : 0);
+  const isSupportedOffset = dateOffsetDays <= 0 && dateOffsetDays >= -3650;
+
+  if (route.module === 'gym' && !isSupportedOffset) {
+    return {
+      module: 'assistant' as const,
+      intent: 'general_chat',
+      confidence: 1,
+      entities: {
+        reply: Number.isNaN(dateOffsetDays)
+          ? 'A data informada não é válida. Use, por exemplo, 20/10/2026.'
+          : dateOffsetDays > 0
+            ? 'Ainda não registro informações em datas futuras. Informe hoje ou uma data passada.'
+            : 'Consigo consultar ou registrar informações dos últimos 10 anos.',
+      },
+    };
+  }
+
+  return { ...route, entities: { ...route.entities, dateOffsetDays: isSupportedOffset ? dateOffsetDays : 0 } };
+}
+
 function parseWaterAmount(text: string) {
   const normalized = text.toLowerCase().replace(',', '.');
   const match = normalized.match(/(\d+(?:\.\d+)?)\s*(ml|mililitros?|l|litros?)/i);
@@ -53,17 +102,19 @@ export function routeMessage(text: string): RoutedIntent {
     return { module: 'gym', intent: 'query_habits_today', confidence: 0.92, entities: {} };
   }
 
-  if (
-    /^(já|ja).*(tomei|fiz|completei|marquei)|^(tomei|fiz|completei|marquei).*[?]$|^(creatina|whey|café|cafe|almoço|almoco|janta|ceia).*[?]$/i.test(normalized)
-  ) {
-    return { module: 'gym', intent: 'query_habit', confidence: 0.88, entities: {} };
-  }
-
-  if (/(não|nao) (tomei|fiz|completei|marquei|comi)|desmar(ca|que)|desfaz.*(hábito|habito|creatina|whey)/i.test(normalized)) {
+  if (/(não|nao).*(tomei|fiz|completei|marquei|comi|marque|registre)|desmar(ca|que)|desfaz.*(hábito|habito|creatina|whey)/i.test(normalized)) {
     return { module: 'gym', intent: 'set_habit', confidence: 0.9, entities: { done: false } };
   }
 
-  if (/(tomei|fiz|completei|marquei|comi|almocei|jantei)/i.test(normalized)) {
+  if (
+    /(?:^(?:já|ja)\s+)?(?:eu\s+)?(?:tomei|fiz|completei|marquei|comi|almocei|jantei).*[?]$|(?:você|voce).*(?:registrou|marcou)|(?:está|esta|foi).*(?:marcado|registrado)/i.test(normalized)
+  ) {
+    return { module: 'gym', intent: 'query_habit', confidence: 0.92, entities: {} };
+  }
+
+  if (
+    /(?:tomei|fiz|completei|marquei|comi|almocei|jantei)|(?:marque|registre|registra|anote).*(?:hábito|habito|refeição|refeicao|café|cafe|lanche|almoço|almoco|janta|jantar|ceia|creatina|whey)|acabei de (?:fazer|realizar|comer|tomar)/i.test(normalized)
+  ) {
     return { module: 'gym', intent: 'set_habit', confidence: 0.84, entities: { done: true } };
   }
 
