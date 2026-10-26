@@ -472,6 +472,8 @@
               <span class="card-chip" id="current-invoice-status">Sem fatura</span>
             </div>
 
+            <div class="current-card-visual" id="current-card-visual" hidden></div>
+
             <div class="invoice-highlight" id="current-invoice-highlight">
               <span>Total da fatura</span>
               <strong>R$ 0,00</strong>
@@ -747,7 +749,7 @@
         </section>
 
         <section
-          class="transactions-summary-grid"
+          class="transactions-summary-grid categories-summary-grid"
           id="categories-summary-grid"
           aria-label="Resumo da area de categorias"
         ></section>
@@ -759,7 +761,16 @@
                 <p class="section-label">Estrutura de classificacao</p>
                 <h2 id="categories-area-title">Categorias cadastradas</h2>
               </div>
-              <div class="transaction-filters" role="toolbar" aria-label="Filtrar categorias">
+              <div class="categories-toolbar">
+                <label class="categories-search" for="categories-search-filter">
+                  <span class="sr-only">Buscar categoria</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6"></circle>
+                    <path d="m16 16 4 4"></path>
+                  </svg>
+                  <input id="categories-search-filter" type="search" placeholder="Buscar categoria..." autocomplete="off">
+                </label>
+                <div class="transaction-filters" role="toolbar" aria-label="Filtrar categorias">
                 <button
                   class="filter-toggle filter-toggle--all is-active"
                   type="button"
@@ -792,6 +803,7 @@
                 >
                   Inativas
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1153,6 +1165,30 @@
                 <option value="monthly">Mensal</option>
               </select>
             </div>
+          </div>
+
+          <div class="recurrence-payment-fields" id="recurrence-payment-fields" hidden>
+            <div class="transaction-form-grid">
+              <div class="form-field">
+                <label for="recurrence-payment-method">Forma de pagamento</label>
+                <select id="recurrence-payment-method" name="paymentMethod">
+                  <option value="">Selecione...</option>
+                  <option value="debit">Débito, Pix, boleto ou dinheiro</option>
+                  <option value="credit">Cartão de crédito</option>
+                </select>
+              </div>
+
+              <div class="form-field" id="recurrence-card-field" hidden>
+                <label for="recurrence-card">Cartão responsável</label>
+                <select id="recurrence-card" name="cardId">
+                  <option value="">Selecione um cartão...</option>
+                </select>
+              </div>
+            </div>
+
+            <p class="recurrence-payment-note" id="recurrence-payment-note">
+              Escolha como esta despesa será paga em cada ocorrência.
+            </p>
           </div>
 
           <p class="transaction-form-feedback" id="recurrence-form-feedback" aria-live="polite"></p>
@@ -1794,6 +1830,15 @@
         </div>
       </section>
     </div>
+
+    <button
+      class="temporary-data-reset"
+      id="temporary-data-reset"
+      type="button"
+      title="Ferramenta temporária de desenvolvimento"
+    >
+      Limpar dados locais
+    </button>
 
     <script src="../config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

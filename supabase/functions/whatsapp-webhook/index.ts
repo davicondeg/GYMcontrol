@@ -1,8 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { classifyWithGemini } from './gemini.ts';
 import { handleGymIntent } from './modules/gym.ts';
+import { handleActiveFinanceConversation, handleFinanceIntent } from './modules/finance.ts';
 import { routeMessage, withTemporalContext } from './router.ts';
-import type { IncomingMessage, MessageProvider, ModuleResult } from './types.ts';
+import type { IncomingMessage, MessageProvider, ModuleResult, RoutedIntent } from './types.ts';
 
 const jsonHeaders = { 'content-type': 'application/json; charset=utf-8' };
 
@@ -159,14 +160,27 @@ Deno.serve(async (request: Request) => {
     }
 
     const referenceDate = localDate();
-    const deterministicRoute = routeMessage(text);
-    const classifiedRoute = deterministicRoute.intent === 'unknown'
+    const context = {
+      admin,
+      messageId,
+      userId: connection.user_id,
+      waId,
+      text,
+      date: referenceDate,
+    };
+    const activeFinanceResponse = await handleActiveFinanceConversation(context);
+    const deterministicRoute = activeFinanceResponse ? null : routeMessage(text);
+    const classifiedRoute = deterministicRoute?.intent === 'unknown'
       ? await classifyWithGemini(text, referenceDate) ?? deterministicRoute
       : deterministicRoute;
-    const route = withTemporalContext(text, referenceDate, classifiedRoute);
+    const route: RoutedIntent = activeFinanceResponse
+      ? { module: 'finance' as const, intent: 'continue_recurrence', confidence: 1, entities: {} }
+      : withTemporalContext(text, referenceDate, classifiedRoute!);
     let response: ModuleResult;
 
-    if (route.module === 'gym') {
+    if (activeFinanceResponse) {
+      response = activeFinanceResponse;
+    } else if (route.module === 'gym') {
       response = await handleGymIntent({
         admin,
         messageId,
@@ -176,18 +190,22 @@ Deno.serve(async (request: Request) => {
         date: referenceDate,
         gymControlUrl: Deno.env.get('GYMCONTROL_APP_URL') ?? undefined,
       }, route);
+    } else if (route.module === 'finance' && ['add_income', 'create_recurrence'].includes(route.intent)) {
+      response = await handleFinanceIntent(context, route);
     } else if (route.intent === 'module_not_available') {
       const moduleName = route.module === 'finance' ? 'Financeiro' : 'Agenda';
-      response = { reply: `Entendi que essa mensagem pertence ao módulo ${moduleName}, mas ele ainda não está disponível.` };
+      response = route.module === 'finance'
+        ? { reply: 'O Financeiro já registra receitas. O cadastro de despesas pelo WhatsApp será habilitado na próxima etapa.' }
+        : { reply: `Entendi que essa mensagem pertence ao módulo ${moduleName}, mas ele ainda não está disponível.` };
     } else if (route.intent === 'help') {
       response = {
-        reply: 'Posso conversar com você e também registrar ou consultar água, hábitos e treinos, inclusive em datas passadas, listar exercícios e cargas e enviar o link do GymControl. Exemplos: “bebi 500 ml”, “tomei creatina ontem”, “eu treinei anteontem?” e “quais hábitos fiz hoje?”.',
+        reply: 'Posso conversar, registrar receitas e também registrar ou consultar água, hábitos e treinos. Exemplos: “recebi R$ 500 de um cliente”, “bebi 500 ml”, “tomei creatina ontem” e “quais hábitos fiz hoje?”.',
       };
     } else if (route.intent === 'general_chat' && typeof route.entities.reply === 'string') {
       response = { reply: route.entities.reply };
     } else {
       response = {
-        reply: 'Não entendi com segurança. Tente, por exemplo: “bebi 500 ml”, “tomei creatina”, “listar meus treinos” ou “link do GymControl”.',
+        reply: 'Não entendi com segurança. Tente, por exemplo: “recebi R$ 500 de um cliente”, “bebi 500 ml”, “listar meus treinos” ou “link do GymControl”.',
       };
     }
 

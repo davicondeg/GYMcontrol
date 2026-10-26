@@ -13,7 +13,9 @@ classifica a mensagem e encaminha a operação ao módulo responsável.
 - lista treinos e mostra quais foram concluídos no dia;
 - marca, desmarca e consulta um treino pelo nome;
 - envia o link permanente do GymControl quando configurado;
-- reconhece mensagens dos futuros módulos Agenda e Financeiro sem registrar dados incorretos;
+- registra receitas do módulo Financeiro com valor, descrição, data e categoria;
+- conduz o cadastro conversacional de recorrências financeiras, preservando o progresso por 24 horas e exigindo confirmação antes de salvar;
+- reconhece mensagens do futuro módulo Agenda e despesas financeiras ainda não habilitadas sem registrar dados incorretos;
 - conversa sobre assuntos gerais pelo Gemini quando a mensagem não exige dados do aplicativo;
 - responde em português pelo WhatsApp.
 
@@ -39,8 +41,8 @@ variáveis `EXPO_PUBLIC_*`.
 - `modules/gym.ts`: executa comandos pertencentes ao GymControl;
 - `types.ts`: mantém o contrato comum entre o roteador e os módulos.
 
-Agenda e Financeiro devem ganhar arquivos próprios em `modules/` quando forem
-implementados. O Gemini poderá ser usado como fallback quando as regras locais
+Agenda deve ganhar um arquivo próprio em `modules/` quando for implementada. O
+Financeiro começa em `modules/finance.ts`, inicialmente com receitas. O Gemini poderá ser usado como fallback quando as regras locais
 não classificarem a mensagem com confiança suficiente.
 
 ## Canal provisório pela Evolution API

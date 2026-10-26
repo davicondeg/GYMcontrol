@@ -20,6 +20,36 @@ Atualmente, o sistema já permite o cadastro de transações, com separação en
 
 O projeto ainda está em evolução. Entre os próximos passos estão a implementação completa da lógica de parcelamento, geração automática de parcelas distribuídas ao longo dos meses, organização de faturas por período, criação de relatórios e gráficos mais avançados, cálculo de comprometimento financeiro futuro e melhorias na experiência do usuário.
 
+## ⚠️ Requisito antes da finalização: onboarding inicial
+
+Antes de considerar o aplicativo pronto para uso geral, deve ser implementado um
+fluxo obrigatório de primeiro acesso. O usuário novo não deve chegar diretamente
+ao dashboard sem concluir a configuração mínima necessária para que faturas,
+transações e relatórios funcionem com dados coerentes.
+
+Ordem proposta para o onboarding:
+
+1. Apresentar brevemente como o Gestor Financeiro organiza gastos e faturas.
+2. Exibir as categorias sugeridas de receitas e despesas.
+3. Permitir aprovar, editar, excluir e criar categorias antes de continuar.
+4. Solicitar o cadastro de pelo menos um cartão, incluindo nome, instituição,
+   limite, fechamento e vencimento.
+5. Oferecer o cadastro de uma conta de pagamento vinculada ao cartão quando
+   aplicável.
+6. Mostrar um resumo da configuração e pedir confirmação para entrar no app.
+
+Critérios mínimos de conclusão:
+
+- o usuário revisou e confirmou suas categorias;
+- existe pelo menos uma categoria ativa de receita e uma de despesa;
+- existe pelo menos um cartão cadastrado;
+- o sistema salvou a conclusão do onboarding por usuário;
+- acessos posteriores abrem o dashboard, com opção de rever a configuração;
+- se o processo for interrompido, ele retorna ao último passo concluído.
+
+Este fluxo é requisito de lançamento e deve ser implementado antes dos ajustes
+finais e da publicação geral do aplicativo.
+
 ## 🧩 Decisões de arquitetura
 
 Algumas decisões importantes foram tomadas durante o desenvolvimento para manter o sistema simples e focado. O sistema não controla saldo bancário real, não simula pagamento de faturas e não utiliza contas bancárias como entidade principal. O foco está totalmente no controle de gastos, especialmente no crédito. Receitas são tratadas como entradas genéricas de dinheiro, e há uma separação clara entre o que impacta o presente e o que representa compromissos futuros.

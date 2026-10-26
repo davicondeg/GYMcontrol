@@ -41,6 +41,61 @@
     };
   }
 
+  function mapTransaction(row) {
+    const category = Array.isArray(row.finance_categories)
+      ? row.finance_categories[0]
+      : row.finance_categories;
+    const account = Array.isArray(row.finance_accounts)
+      ? row.finance_accounts[0]
+      : row.finance_accounts;
+
+    return {
+      id: row.id,
+      description: row.description,
+      amount: Number(row.amount || 0),
+      totalAmount: Number(row.amount || 0),
+      type: row.type === 'income' ? 'receita' : 'despesa',
+      category: category?.name || 'Sem categoria',
+      categoryId: row.category_id || '',
+      date: row.transaction_date,
+      paymentMethod: row.payment_method || '',
+      accountId: row.account_id || '',
+      accountName: account?.name || '',
+      accountType: account?.type || '',
+      installments: 1,
+      installmentValue: Number(row.amount || 0),
+      source: row.notes?.startsWith('Registrada pelo WhatsApp') ? 'whatsapp' : 'database',
+    };
+  }
+
+  function mapRecurringTransaction(row) {
+    const category = Array.isArray(row.finance_categories)
+      ? row.finance_categories[0]
+      : row.finance_categories;
+    const account = Array.isArray(row.finance_accounts)
+      ? row.finance_accounts[0]
+      : row.finance_accounts;
+
+    return {
+      id: row.id,
+      description: row.description,
+      amount: Number(row.amount || 0),
+      type: row.type === 'income' ? 'receita' : 'despesa',
+      category: category?.name || 'Sem categoria',
+      categoryId: row.category_id || '',
+      frequency: row.frequency || 'monthly',
+      dayOfMonth: Number(row.day_of_month || 1),
+      paymentMethod: row.payment_method || '',
+      cardId: row.payment_method === 'credit' ? (row.account_id || '') : '',
+      accountId: row.account_id || '',
+      accountName: account?.name || '',
+      startsOn: row.starts_on,
+      endsOn: row.ends_on || '',
+      status: row.is_active ? 'active' : 'paused',
+      source: 'database',
+    };
+  }
+
   function categoryPayload(userId, category) {
     return {
       user_id: userId,
@@ -78,17 +133,30 @@
 
   async function loadWorkspace() {
     const client = getClient();
-    const [categoriesResult, accountsResult] = await Promise.all([
+    const [categoriesResult, accountsResult, transactionsResult, recurrencesResult] = await Promise.all([
       client.from('finance_categories').select('*').order('name'),
       client.from('finance_accounts').select('*').order('created_at'),
+      client
+        .from('finance_transactions')
+        .select('*,finance_categories(name),finance_accounts(name,type)')
+        .order('transaction_date', { ascending: false })
+        .order('created_at', { ascending: false }),
+      client
+        .from('finance_recurring_transactions')
+        .select('*,finance_categories(name),finance_accounts(name,type)')
+        .order('created_at', { ascending: false }),
     ]);
 
     if (categoriesResult.error) throw categoriesResult.error;
     if (accountsResult.error) throw accountsResult.error;
+    if (transactionsResult.error) throw transactionsResult.error;
+    if (recurrencesResult.error) throw recurrencesResult.error;
 
     return {
       categories: (categoriesResult.data || []).map(mapCategory),
       accounts: (accountsResult.data || []).map(mapAccount),
+      transactions: (transactionsResult.data || []).map(mapTransaction),
+      recurrences: (recurrencesResult.data || []).map(mapRecurringTransaction),
     };
   }
 

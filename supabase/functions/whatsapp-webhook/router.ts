@@ -31,7 +31,7 @@ export function withTemporalContext(text: string, referenceDate: string, route: 
   const dateOffsetDays = parsedOffset ?? (Number.isInteger(modelOffset) ? modelOffset : 0);
   const isSupportedOffset = dateOffsetDays <= 0 && dateOffsetDays >= -3650;
 
-  if (route.module === 'gym' && !isSupportedOffset) {
+  if ((route.module === 'gym' || route.module === 'finance') && !isSupportedOffset) {
     return {
       module: 'assistant' as const,
       intent: 'general_chat',
@@ -58,9 +58,48 @@ function parseWaterAmount(text: string) {
   return Math.round(match[2].toLowerCase().startsWith('l') ? value * 1000 : value);
 }
 
+function parseMoneyAmount(text: string) {
+  const match = text.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?:reais?|real))?/i);
+  if (!match) return null;
+  const raw = match[1];
+  const normalized = raw.includes(',')
+    ? raw.replaceAll('.', '').replace(',', '.')
+    : /^\d{1,3}(?:\.\d{3})+$/.test(raw)
+      ? raw.replaceAll('.', '')
+      : raw;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function parseIncomeDescription(text: string) {
+  return text
+    .replace(/\b(?:hoje|ontem|anteontem)\b/gi, '')
+    .replace(/\b(?:recebi|ganhei|entrou|caiu|registre|registra|adicione|adiciona|anote)\b/gi, '')
+    .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|(?:r\$\s*)?\d+(?:[.,]\d{1,2})?/gi, '')
+    .replace(/\b(?:reais?|real)\b/gi, '')
+    .replace(/^\s*(?:de|do|da|por|como)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s,.:;-]+|[\s,.:;-]+$/g, '')
+    .trim() || 'Receita pelo WhatsApp';
+}
+
 export function routeMessage(text: string): RoutedIntent {
   const normalized = text.toLowerCase().trim();
   const waterAmount = parseWaterAmount(normalized);
+
+  if (/(?:recebi|ganhei|entrou|caiu).*(?:r\$|\d|reais?|real)|(?:registr|adicion|anot).*(?:receita|entrada)/i.test(normalized)) {
+    const amount = parseMoneyAmount(normalized);
+    return {
+      module: 'finance',
+      intent: 'add_income',
+      confidence: amount ? 0.98 : 0.82,
+      entities: { amount, description: parseIncomeDescription(text) },
+    };
+  }
+
+  if (/(?:adicion|cadastr|cri|registr).*(?:recorr[eê]ncia|recorrente)|(?:nova|uma).*(?:recorr[eê]ncia|recorrente)/i.test(normalized)) {
+    return { module: 'finance', intent: 'create_recurrence', confidence: 0.97, entities: {} };
+  }
 
   if (waterAmount) {
     return { module: 'gym', intent: 'add_water', confidence: 1, entities: { amountMl: waterAmount } };

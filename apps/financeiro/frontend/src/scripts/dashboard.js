@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const kpiGrid = document.getElementById('kpi-grid');
   const transactionList = document.getElementById('transaction-list');
   const logoutButton = document.getElementById('logout-button');
+  const temporaryDataResetButton = document.getElementById('temporary-data-reset');
   const btnAddTransaction = document.getElementById('btnAddTransaction');
   const btnAddTransactionModule = document.getElementById('btnAddTransactionModule');
   const btnAddRecurrence = document.getElementById('btnAddRecurrence');
@@ -46,6 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cardsEmptyState = document.getElementById('cards-empty-state');
   const currentCardTitle = document.getElementById('current-card-title');
   const currentInvoiceStatus = document.getElementById('current-invoice-status');
+  const currentCardVisual = document.getElementById('current-card-visual');
   const currentInvoiceHighlight = document.getElementById('current-invoice-highlight');
   const currentInvoiceList = document.getElementById('current-invoice-list');
   const currentInvoiceEmptyState = document.getElementById('current-invoice-empty-state');
@@ -77,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const reportsTableWrap = document.getElementById('reports-table-wrap');
   const reportsTableBody = document.getElementById('reports-table-body');
   const managedCategoryFilterButtons = Array.from(document.querySelectorAll('[data-managed-category-filter]'));
+  const categoriesSearchFilter = document.getElementById('categories-search-filter');
   const categoriesSummaryGrid = document.getElementById('categories-summary-grid');
   const categoriesGrid = document.getElementById('categories-grid');
   const categoriesEmptyState = document.getElementById('categories-empty-state');
@@ -132,6 +135,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const recurrenceCategoryInput = document.getElementById('recurrence-category');
   const recurrenceDayInput = document.getElementById('recurrence-day');
   const recurrenceFrequencyInput = document.getElementById('recurrence-frequency');
+  const recurrencePaymentFields = document.getElementById('recurrence-payment-fields');
+  const recurrencePaymentMethodInput = document.getElementById('recurrence-payment-method');
+  const recurrenceCardField = document.getElementById('recurrence-card-field');
+  const recurrenceCardInput = document.getElementById('recurrence-card');
+  const recurrencePaymentNote = document.getElementById('recurrence-payment-note');
   const recurrenceFeedback = document.getElementById('recurrence-form-feedback');
   const closeRecurrenceModalButtons = Array.from(document.querySelectorAll('[data-close-recurrence-modal]'));
   const cardModal = document.getElementById('card-modal');
@@ -228,16 +236,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   let transactions = transactionsSource.map((transaction) => ({ ...transaction }));
   let installments = installmentsSource.map((installment) => ({ ...installment }));
   let cards = cardsSource.map((card) => ({ ...card }));
+  const animatedBankCardIds = new Set();
   let accounts = accountsSource.map((account) => ({ ...account }));
   let accountActivities = accountActivitiesSource.map((activity) => ({ ...activity }));
   let categoryActivities = categoryActivitiesSource.map((activity) => ({ ...activity }));
   let reportTransactions = reportTransactionsSource.map((transaction) => ({ ...transaction }));
   let recurrences = recurrencesSource.map((recurrence) => ({ ...recurrence }));
+  let recurrenceInvoicePayments = {};
   let categories = [];
   let currentFilter = 'all';
   let currentDashboardView = 'dashboard';
   let currentRecurrenceFilter = 'all';
   let currentManagedCategoryFilter = 'all';
+  let managedCategorySearch = '';
   let modalMode = 'create';
   let editingTransactionId = null;
   let lastModalTrigger = null;
@@ -280,6 +291,113 @@ document.addEventListener('DOMContentLoaded', async () => {
     account: 'all',
     category: 'all',
   };
+  const LOCAL_WORKSPACE_STORAGE_PREFIX = 'gestor-financeiro:workspace:v1';
+  let localWorkspaceStorageKey = '';
+  let localWorkspacePersistenceEnabled = false;
+  let localWorkspacePersistenceTimer = null;
+
+  function cloneCollection(collection) {
+    return collection.map((item) => ({ ...item }));
+  }
+
+  function createLocalWorkspaceStorageKey(user) {
+    const userIdentifier = String((user && (user.id || user.email)) || 'temporary-user');
+    return `${LOCAL_WORKSPACE_STORAGE_PREFIX}:${encodeURIComponent(userIdentifier)}`;
+  }
+
+  function readLocalWorkspace() {
+    if (!localWorkspaceStorageKey) return null;
+
+    try {
+      const serializedWorkspace = window.localStorage.getItem(localWorkspaceStorageKey);
+      const parsedWorkspace = serializedWorkspace ? JSON.parse(serializedWorkspace) : null;
+      return parsedWorkspace && parsedWorkspace.version === 1 ? parsedWorkspace : null;
+    } catch (error) {
+      console.warn('Não foi possível recuperar os dados locais.', error);
+      return null;
+    }
+  }
+
+  function restoreLocalWorkspace(workspace, options = {}) {
+    if (!workspace) return;
+
+    const { includeRemoteCollections = false } = options;
+
+    if (Array.isArray(workspace.transactions)) transactions = cloneCollection(workspace.transactions);
+    if (Array.isArray(workspace.installments)) installments = cloneCollection(workspace.installments);
+    if (Array.isArray(workspace.cards)) cards = cloneCollection(workspace.cards);
+    if (Array.isArray(workspace.accountActivities)) accountActivities = cloneCollection(workspace.accountActivities);
+    if (Array.isArray(workspace.categoryActivities)) categoryActivities = cloneCollection(workspace.categoryActivities);
+    if (Array.isArray(workspace.reportTransactions)) {
+      reportTransactions = cloneCollection(workspace.reportTransactions);
+    }
+    if (Array.isArray(workspace.recurrences)) recurrences = cloneCollection(workspace.recurrences);
+    if (workspace.recurrenceInvoicePayments && typeof workspace.recurrenceInvoicePayments === 'object') {
+      recurrenceInvoicePayments = { ...workspace.recurrenceInvoicePayments };
+    }
+
+    if (includeRemoteCollections && Array.isArray(workspace.accounts)) {
+      accounts = cloneCollection(workspace.accounts);
+    }
+
+    if (includeRemoteCollections && Array.isArray(workspace.categories)) {
+      categories = cloneCollection(workspace.categories);
+    }
+
+    transactionIdCounter = transactions.length;
+    recurrenceIdCounter = recurrences.length;
+    cardIdCounter = cards.length;
+    accountIdCounter = accounts.length;
+    selectedCardId = cards[0] ? cards[0].id : null;
+  }
+
+  function persistLocalWorkspace() {
+    if (!localWorkspacePersistenceEnabled || !localWorkspaceStorageKey) return;
+
+    const workspace = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      transactions,
+      installments,
+      cards,
+      accounts,
+      accountActivities,
+      categoryActivities,
+      reportTransactions,
+      recurrences,
+      recurrenceInvoicePayments,
+      categories,
+    };
+
+    try {
+      window.localStorage.setItem(localWorkspaceStorageKey, JSON.stringify(workspace));
+    } catch (error) {
+      console.warn('Não foi possível salvar os dados locais.', error);
+      showDashboardNavFeedback('Não foi possível salvar os dados neste navegador.');
+    }
+  }
+
+  function scheduleLocalWorkspacePersistence() {
+    if (!localWorkspacePersistenceEnabled) return;
+
+    window.clearTimeout(localWorkspacePersistenceTimer);
+    localWorkspacePersistenceTimer = window.setTimeout(persistLocalWorkspace, 80);
+  }
+
+  function clearLocalWorkspace() {
+    if (!localWorkspaceStorageKey) return;
+
+    const shouldClear = window.confirm(
+      'Deseja apagar os dados salvos localmente neste navegador? Esta ação não apaga dados já enviados ao Supabase.',
+    );
+
+    if (!shouldClear) return;
+
+    localWorkspacePersistenceEnabled = false;
+    window.clearTimeout(localWorkspacePersistenceTimer);
+    window.localStorage.removeItem(localWorkspaceStorageKey);
+    window.location.reload();
+  }
   console.log('Botão adicionar transação encontrado:', btnAddTransaction);
   console.log('Botão adicionar transação do módulo encontrado:', btnAddTransactionModule);
   console.log('Botão nova recorrência encontrado:', btnAddRecurrence);
@@ -333,6 +451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     !kpiGrid ||
     !transactionList ||
     !logoutButton ||
+    !temporaryDataResetButton ||
     !btnAddTransaction ||
     !btnAddTransactionModule ||
     !btnAddRecurrence ||
@@ -355,6 +474,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     !cardsEmptyState ||
     !currentCardTitle ||
     !currentInvoiceStatus ||
+    !currentCardVisual ||
     !currentInvoiceHighlight ||
     !currentInvoiceList ||
     !currentInvoiceEmptyState ||
@@ -383,6 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     !reportsTableWrap ||
     !reportsTableBody ||
     managedCategoryFilterButtons.length === 0 ||
+    !categoriesSearchFilter ||
     !categoriesSummaryGrid ||
     !categoriesGrid ||
     !categoriesEmptyState ||
@@ -431,6 +552,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     !recurrenceCategoryInput ||
     !recurrenceDayInput ||
     !recurrenceFrequencyInput ||
+    !recurrencePaymentFields ||
+    !recurrencePaymentMethodInput ||
+    !recurrenceCardField ||
+    !recurrenceCardInput ||
+    !recurrencePaymentNote ||
     !recurrenceFeedback ||
     closeRecurrenceModalButtons.length === 0 ||
     !cardModal ||
@@ -1274,9 +1400,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 'open';
   }
 
+  function getRecurrenceInvoicePaymentKey(recurrenceId, monthValue) {
+    return `${recurrenceId}:${monthValue}`;
+  }
+
+  function buildRecurringCardInstallments(cardId = '') {
+    const currentMonth = getCurrentMonthValue();
+    const planningEndMonth = addMonthsToMonthValue(currentMonth, 11);
+
+    return recurrences
+      .filter((recurrence) => {
+        const isExpense = normalizeTransactionType(recurrence.type) === 'despesa';
+        const isCredit = String(recurrence.paymentMethod || '').toLowerCase() === 'credit';
+        const matchesCard = !cardId || recurrence.cardId === cardId;
+        return isExpense && isCredit && recurrence.cardId && matchesCard;
+      })
+      .flatMap((recurrence) => {
+        const isActive = normalizeRecurrenceStatus(recurrence.status) === 'active';
+        const recurrenceStartMonth = String(recurrence.startsOn || getTodayDate()).slice(0, 7);
+        const recurrenceEndMonth = recurrence.endsOn
+          ? String(recurrence.endsOn).slice(0, 7)
+          : planningEndMonth;
+        const lastMonth = recurrenceEndMonth < planningEndMonth ? recurrenceEndMonth : planningEndMonth;
+        const months = [];
+        let monthValue = recurrenceStartMonth;
+
+        while (monthValue <= lastMonth && months.length < 120) {
+          months.push(monthValue);
+          monthValue = addMonthsToMonthValue(monthValue, 1);
+        }
+
+        return months.map((month) => {
+          const paymentKey = getRecurrenceInvoicePaymentKey(recurrence.id, month);
+          const paidAt = recurrenceInvoicePayments[paymentKey] || '';
+          const linkedCard = getCardById(recurrence.cardId);
+
+          return {
+            id: `recurring-invoice-${recurrence.id}-${month}`,
+            transactionId: `recurrence-${recurrence.id}-${month}`,
+            recurrenceId: recurrence.id,
+            cardId: recurrence.cardId,
+            description: recurrence.description,
+            category: recurrence.category,
+            transactionType: recurrence.type,
+            installmentNumber: 1,
+            totalInstallments: 1,
+            amount: getRecurrenceAmount(recurrence),
+            month,
+            dueDay: Number((linkedCard && linkedCard.dueDay) || 1),
+            status: paidAt ? 'paid' : 'pending',
+            paidAt,
+            isRecurring: true,
+          };
+        }).filter((installment) => isActive || installment.status === 'paid');
+      });
+  }
+
   function buildCardInvoices(cardId) {
-    const relatedInstallments = installments
-      .filter((installment) => installment.cardId === cardId)
+    const relatedInstallments = [
+      ...installments.filter((installment) => installment.cardId === cardId),
+      ...buildRecurringCardInstallments(cardId),
+    ]
       .sort((first, second) => {
         if (first.month !== second.month) {
           return first.month.localeCompare(second.month);
@@ -1315,8 +1499,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function getInstallmentsByMonth(monthKey, cardId) {
-    return installments
-      .filter((installment) => installment.cardId === cardId && installment.month === monthKey)
+    return [
+      ...installments.filter((installment) => installment.cardId === cardId),
+      ...buildRecurringCardInstallments(cardId),
+    ]
+      .filter((installment) => installment.month === monthKey)
       .sort((first, second) => first.installmentNumber - second.installmentNumber);
   }
 
@@ -1349,12 +1536,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function buildSyntheticRecurrenceDate(dayOfMonth) {
     const monthValue = getCurrentMonthValue();
-    const normalizedDay = Math.min(Math.max(Number(dayOfMonth) || 1, 1), 31);
+    const [year, month] = monthValue.split('-').map(Number);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const normalizedDay = Math.min(Math.max(Number(dayOfMonth) || 1, 1), lastDayOfMonth);
 
     return `${monthValue}-${String(normalizedDay).padStart(2, '0')}`;
   }
 
-  function calculateKpiValues(sourceTransactions = transactions) {
+  function getRecurringTransactionsForCurrentMonth() {
+    const currentMonth = getCurrentMonthValue();
+
+    return recurrences
+      .filter((recurrence) => normalizeRecurrenceStatus(recurrence.status) === 'active')
+      .map((recurrence) => {
+        const amount = getRecurrenceAmount(recurrence);
+        const paymentMethod = normalizeTransactionType(recurrence.type) === 'despesa'
+          ? String(recurrence.paymentMethod || '').toLowerCase()
+          : '';
+        const linkedCard = paymentMethod === 'credit' ? getCardById(recurrence.cardId) : null;
+
+        return {
+          id: `recurrence-${recurrence.id}-${currentMonth}`,
+          recurrenceId: recurrence.id,
+          description: recurrence.description,
+          amount,
+          totalAmount: amount,
+          type: normalizeTransactionType(recurrence.type),
+          category: recurrence.category,
+          date: buildSyntheticRecurrenceDate(recurrence.dayOfMonth),
+          paymentMethod,
+          cardId: linkedCard ? linkedCard.id : '',
+          accountId: linkedCard ? linkedCard.id : '',
+          accountName: linkedCard ? linkedCard.name : '',
+          accountType: linkedCard ? 'credit_card' : '',
+          installments: 1,
+          installmentValue: amount,
+          source: 'recurrence',
+          status: 'scheduled',
+        };
+      });
+  }
+
+  function getDashboardTransactionOccurrences() {
+    return [
+      ...transactions,
+      ...getRecurringTransactionsForCurrentMonth(),
+    ].sort((first, second) => String(second.date || '').localeCompare(String(first.date || '')));
+  }
+
+  function calculateKpiValues(sourceTransactions = getDashboardTransactionOccurrences()) {
     const currentMonth = getTodayDate().slice(0, 7);
     let currentBalance = 0;
     let monthlyIncome = 0;
@@ -1386,7 +1616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    installments.forEach((installment) => {
+    [...installments, ...buildRecurringCardInstallments()].forEach((installment) => {
       if (installment.status !== 'paid') {
         return;
       }
@@ -1943,12 +2173,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderTransactions(filter) {
+    const dashboardTransactions = getDashboardTransactionOccurrences();
     const filteredTransactions = filter === 'all'
-      ? transactions
-      : transactions.filter((transaction) => normalizeTransactionType(transaction.type) === filter);
+      ? dashboardTransactions
+      : dashboardTransactions.filter((transaction) => normalizeTransactionType(transaction.type) === filter);
 
     if (filteredTransactions.length === 0) {
-      transactionList.innerHTML = transactions.length === 0
+      transactionList.innerHTML = dashboardTransactions.length === 0
         ? `
           <li class="empty-state">
             <strong>Você ainda não possui lançamentos cadastrados.</strong>
@@ -2010,8 +2241,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function getFilteredTransactionsForModule() {
     const searchTerm = normalizeSearchTerm(transactionsViewFilters.search);
+    const transactionOccurrences = [
+      ...transactions,
+      ...getRecurringTransactionsForCurrentMonth(),
+    ];
 
-    return transactions
+    return transactionOccurrences
       .filter((transaction) => {
         const type = normalizeTransactionType(transaction.type);
 
@@ -2050,7 +2285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       transactionsTableWrap.hidden = true;
       transactionsEmptyState.hidden = false;
 
-      if (transactions.length === 0) {
+      if (transactions.length === 0 && getRecurringTransactionsForCurrentMonth().length === 0) {
         transactionsEmptyState.innerHTML = `
           <strong>Nenhuma transação cadastrada ainda.</strong>
           <span>Clique em "Adicionar transação" para registrar sua primeira movimentação.</span>
@@ -2101,6 +2336,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  function renderRecurrenceCardOptions(selectedValue = '') {
+    recurrenceCardInput.innerHTML = '<option value="">Selecione um cartão...</option>';
+
+    cards.forEach((card) => {
+      recurrenceCardInput.appendChild(new Option(card.name, card.id));
+    });
+
+    recurrenceCardInput.value = selectedValue;
+  }
+
+  function updateRecurrencePaymentFields() {
+    const isExpense = normalizeTransactionType(recurrenceTypeInput.value) === 'despesa';
+    const isCredit = isExpense && recurrencePaymentMethodInput.value === 'credit';
+    const selectedCard = isCredit ? getCardById(recurrenceCardInput.value) : null;
+
+    recurrencePaymentFields.hidden = !isExpense;
+    recurrencePaymentMethodInput.disabled = !isExpense;
+    recurrencePaymentMethodInput.required = isExpense;
+    recurrenceCardField.hidden = !isCredit;
+    recurrenceCardInput.disabled = !isCredit;
+    recurrenceCardInput.required = isCredit;
+
+    if (!isCredit) {
+      recurrenceCardInput.value = '';
+      recurrencePaymentNote.textContent = 'Escolha como esta despesa será paga em cada ocorrência.';
+      return;
+    }
+
+    recurrencePaymentNote.textContent = selectedCard
+      ? `Cada cobrança entrará automaticamente na fatura do cartão ${selectedCard.name}.`
+      : 'Selecione o cartão que receberá esta cobrança recorrente.';
+  }
+
+  function getRecurrencePaymentLabel(recurrence) {
+    if (normalizeTransactionType(recurrence.type) !== 'despesa') {
+      return 'Entrada recorrente';
+    }
+
+    if (String(recurrence.paymentMethod || '').toLowerCase() !== 'credit') {
+      return 'Pagamento à vista';
+    }
+
+    const linkedCard = getCardById(recurrence.cardId);
+    return linkedCard ? `Crédito • ${linkedCard.name}` : 'Cartão não encontrado';
+  }
+
   function selectRecurrenceType(type) {
     const normalizedType = normalizeTransactionType(type);
     const previousType = recurrenceTypeInput.value;
@@ -2121,6 +2402,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       recurrenceCategoryInput.innerHTML = '<option value="">Selecione uma categoria...</option>';
     }
+
+    updateRecurrencePaymentFields();
   }
 
   function resetRecurrenceForm() {
@@ -2128,6 +2411,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     recurrenceStatusInput.value = 'active';
     recurrenceFrequencyInput.value = 'monthly';
     recurrenceDayInput.value = String(new Date().getDate());
+    recurrencePaymentMethodInput.value = '';
+    renderRecurrenceCardOptions();
     selectRecurrenceType('receita');
     setRecurrenceFormFeedback('', 'info');
   }
@@ -2197,6 +2482,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     recurrenceStatusInput.value = normalizeRecurrenceStatus(recurrence.status) || 'active';
     selectRecurrenceType(normalizedType === 'despesa' ? 'despesa' : 'receita');
     recurrenceCategoryInput.value = recurrence.category || '';
+    recurrencePaymentMethodInput.value = recurrence.paymentMethod || '';
+    renderRecurrenceCardOptions(recurrence.cardId || '');
+    updateRecurrencePaymentFields();
 
     showRecurrenceModal(recurrenceDescriptionInput);
   }
@@ -2222,6 +2510,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       category: recurrenceCategoryInput.value.trim(),
       frequency: recurrenceFrequencyInput.value || 'monthly',
       dayOfMonth: Number(recurrenceDayInput.value),
+      paymentMethod: normalizeTransactionType(recurrenceTypeInput.value) === 'despesa'
+        ? recurrencePaymentMethodInput.value
+        : '',
+      cardId: recurrencePaymentMethodInput.value === 'credit' ? recurrenceCardInput.value : '',
+      accountId: recurrencePaymentMethodInput.value === 'credit' ? recurrenceCardInput.value : '',
+      startsOn: recurrenceModalMode === 'edit' && editingRecurrenceId
+        ? (recurrences.find((recurrence) => recurrence.id === editingRecurrenceId)?.startsOn || getTodayDate())
+        : getTodayDate(),
       status: normalizeRecurrenceStatus(recurrenceStatusInput.value) || 'active',
     };
   }
@@ -2280,6 +2576,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         components.renderRecurrenceTableRow({
           ...recurrence,
           frequencyLabel: formatRecurrenceFrequency(recurrence.dayOfMonth),
+          paymentLabel: getRecurrencePaymentLabel(recurrence),
           status: normalizeRecurrenceStatus(recurrence.status),
         }))
       .join('');
@@ -2291,6 +2588,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderRecurrencesView() {
     setActiveRecurrenceFilter(currentRecurrenceFilter);
     renderRecurrenceCategoryOptions(recurrenceCategoryInput.value, recurrenceTypeInput.value || 'receita');
+    renderRecurrenceCardOptions(recurrenceCardInput.value);
 
     const filteredRecurrences = getFilteredRecurrences();
     renderRecurrencesSummary(recurrences);
@@ -2315,6 +2613,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     recurrences = recurrences.filter((item) => item.id !== recurrenceId);
+    recurrenceInvoicePayments = Object.fromEntries(
+      Object.entries(recurrenceInvoicePayments)
+        .filter(([paymentKey]) => !paymentKey.startsWith(`${recurrenceId}:`)),
+    );
     syncRecurrenceDependentViews();
   }
 
@@ -2498,6 +2800,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
     });
     installments = installments.filter((installment) => installment.cardId !== cardId);
+    recurrences = recurrences.map((recurrence) => {
+      if (recurrence.cardId !== cardId) {
+        return recurrence;
+      }
+
+      return {
+        ...recurrence,
+        cardId: '',
+        accountId: '',
+        paymentMethod: '',
+        status: 'paused',
+      };
+    });
     selectedCardId = cards[0] ? cards[0].id : null;
     selectedInvoiceMonth = null;
   }
@@ -2518,6 +2833,142 @@ document.addEventListener('DOMContentLoaded', async () => {
     return 'Aberta';
   }
 
+  function getCardVisualBrand(card) {
+    const cardName = String(card && card.name || '').toLocaleLowerCase('pt-BR');
+
+    if (/nubank|nu bank|roxinho/.test(cardName)) {
+      return 'nubank';
+    }
+
+    if (/ita[uú]/.test(cardName)) return 'itau';
+    if (/santand(?:e|a)r/.test(cardName)) return 'santander';
+    if (/caixa( econ[oô]mica)?/.test(cardName)) return 'caixa';
+    if (/banco do brasil|ourocard|\bbb\b/.test(cardName)) return 'bb';
+    if (/bradesco/.test(cardName)) return 'bradesco';
+    if (/banco inter|\binter\b/.test(cardName)) return 'inter';
+    if (/c6 bank|\bc6\b/.test(cardName)) return 'c6';
+    if (/picpay|pic pay/.test(cardName)) return 'picpay';
+
+    return 'generic';
+  }
+
+  function renderCardVisual(card, options = {}) {
+    const { trackAnimation = true } = options;
+    const brand = getCardVisualBrand(card);
+    const brandDetails = {
+      nubank: { label: 'Nubank', mark: 'nu' },
+      itau: { label: 'Itaú', mark: 'itaú' },
+      santander: { label: 'Santander', mark: 'Santander' },
+      caixa: { label: 'CAIXA', mark: 'CAIXA' },
+      bb: { label: 'Banco do Brasil', mark: 'BB' },
+      bradesco: { label: 'Bradesco', mark: 'bradesco' },
+      inter: { label: 'Inter', mark: 'inter' },
+      c6: { label: 'C6 Bank', mark: 'C6' },
+      picpay: { label: 'PicPay', mark: 'PicPay' },
+    };
+    const brandDetail = brandDetails[brand];
+    const cardLabel = brandDetail ? brandDetail.label : card.name;
+    const fallbackMark = String(card.name || 'Cartão').trim().slice(0, 2).toUpperCase();
+    const brandMark = brandDetail ? brandDetail.mark : fallbackMark;
+    const networkMark = brand === 'nubank'
+      ? '<span class="bank-card-visual__network" aria-label="Mastercard"><i></i><i></i></span>'
+      : '<span class="bank-card-visual__credit-label">crédito</span>';
+    const animationAttributes = trackAnimation
+      ? `data-card-visual-id="${card.id}" data-card-visual-brand="${brand}"`
+      : '';
+
+    return `
+      <div
+        class="bank-card-visual bank-card-visual--${brand}"
+        ${animationAttributes}
+        aria-label="Cartão ${cardLabel}"
+      >
+        <div class="bank-card-visual__top">
+          <span class="bank-card-visual__brand">${brandMark}</span>
+          <span class="bank-card-visual__contactless" aria-hidden="true">)))</span>
+        </div>
+        <span class="bank-card-visual__chip" aria-hidden="true"></span>
+        <div class="bank-card-visual__bottom">
+          <span>${brandDetail ? brandDetail.label : 'Cartão de crédito'}</span>
+          ${networkMark}
+        </div>
+      </div>
+    `;
+  }
+
+  function animateNewBankCards() {
+    if (cardsView.hidden) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cardVisuals = cardsList.querySelectorAll('[data-card-visual-brand]');
+
+    cardVisuals.forEach((visual) => {
+      const cardId = visual.dataset.cardVisualId;
+
+      if (!cardId || animatedBankCardIds.has(cardId)) {
+        return;
+      }
+
+      animatedBankCardIds.add(cardId);
+
+      if (reduceMotion || typeof visual.animate !== 'function') {
+        return;
+      }
+
+      const finalRect = visual.getBoundingClientRect();
+      const startX = (window.innerWidth - finalRect.width) / 2 - finalRect.left;
+      const startY = (window.innerHeight - finalRect.height) / 2 - finalRect.top;
+      const flyingCard = visual.cloneNode(true);
+
+      flyingCard.classList.add('bank-card-visual--intro');
+      flyingCard.removeAttribute('data-card-visual-id');
+      flyingCard.setAttribute('aria-hidden', 'true');
+      flyingCard.style.left = `${finalRect.left}px`;
+      flyingCard.style.top = `${finalRect.top}px`;
+      flyingCard.style.width = `${finalRect.width}px`;
+      flyingCard.style.height = `${finalRect.height}px`;
+      visual.style.visibility = 'hidden';
+      document.body.appendChild(flyingCard);
+
+      const animation = flyingCard.animate([
+        {
+          opacity: 0,
+          transform: `translate3d(${startX}px, ${startY}px, 0) scale(2.15) rotateY(-540deg) rotateZ(-7deg)`,
+        },
+        {
+          opacity: 1,
+          offset: 0.18,
+          transform: `translate3d(${startX}px, ${startY}px, 0) scale(2.15) rotateY(-405deg) rotateZ(-4deg)`,
+        },
+        {
+          opacity: 1,
+          offset: 0.76,
+          transform: 'translate3d(0, 0, 0) scale(1.08) rotateY(-18deg) rotateZ(1deg)',
+        },
+        {
+          opacity: 1,
+          transform: 'translate3d(0, 0, 0) scale(1) rotateY(0deg) rotateZ(0deg)',
+        },
+      ], {
+        duration: 1450,
+        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        fill: 'forwards',
+      });
+
+      const finishAnimation = () => {
+        flyingCard.remove();
+        if (visual.isConnected) {
+          visual.style.visibility = '';
+        }
+      };
+
+      animation.addEventListener('finish', finishAnimation, { once: true });
+      animation.addEventListener('cancel', finishAnimation, { once: true });
+    });
+  }
+
   function renderCardsList() {
     if (cards.length === 0) {
       cardsList.innerHTML = '';
@@ -2533,7 +2984,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `
           <article class="card-entry ${isSelected ? 'is-selected' : ''}" data-card-id="${card.id}">
             <div class="card-entry__header">
-              <div>
+              ${renderCardVisual(card)}
+              <div class="card-entry__content">
                 <h3 class="card-entry__title">${card.name}</h3>
                 <div class="card-entry__details">
                   <span>Limite: ${Number(card.limit || 0).toLocaleString('pt-BR', {
@@ -2584,6 +3036,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       })
       .join('');
+
+    window.requestAnimationFrame(animateNewBankCards);
   }
 
   function renderCurrentInvoice(card) {
@@ -2592,6 +3046,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     currentCardTitle.textContent = card.name;
     currentInvoiceStatus.className = 'card-chip invoice-status-chip';
+    currentCardVisual.innerHTML = renderCardVisual(card, { trackAnimation: false });
+    currentCardVisual.hidden = false;
 
     if (!currentInvoice) {
       currentInvoiceStatus.textContent = 'Sem fatura';
@@ -2626,7 +3082,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </strong>
           </div>
           <div class="invoice-entry__details">
-            <span>${installment.installmentNumber}/${installment.totalInstallments} parcelas</span>
+            <span>${installment.isRecurring ? 'Cobrança recorrente' : `${installment.installmentNumber}/${installment.totalInstallments} parcelas`}</span>
             <span>${installment.category}</span>
           </div>
         </article>
@@ -2728,7 +3184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <td data-label="Origem">${installment.description}</td>
           <td data-label="Cartão">${card.name}</td>
           <td data-label="Categoria">${installment.category}</td>
-          <td data-label="Parcela">${installment.installmentNumber}/${installment.totalInstallments}</td>
+          <td data-label="Parcela">${installment.isRecurring ? 'Recorrente' : `${installment.installmentNumber}/${installment.totalInstallments}`}</td>
           <td data-label="Valor">
             <strong class="transaction-amount expense">
               -${Number(installment.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -2760,6 +3216,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentCardTitle.textContent = 'Selecione um cartão';
       currentInvoiceStatus.textContent = 'Sem fatura';
       currentInvoiceStatus.className = 'card-chip invoice-status-chip';
+      currentCardVisual.innerHTML = '';
+      currentCardVisual.hidden = true;
       currentInvoiceHighlight.innerHTML = `
         <span>Total da fatura</span>
         <strong>R$ 0,00</strong>
@@ -2843,6 +3301,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const paidAt = getTodayDate();
+
+    invoice.installments
+      .filter((installment) => installment.isRecurring && installment.recurrenceId)
+      .forEach((installment) => {
+        const paymentKey = getRecurrenceInvoicePaymentKey(installment.recurrenceId, invoiceMonth);
+        recurrenceInvoicePayments[paymentKey] = paidAt;
+      });
 
     installments = installments.map((installment) => {
       if (installment.cardId !== cardId || installment.month !== invoiceMonth) {
@@ -3494,15 +3959,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function getFilteredManagedCategories() {
+    const searchTerm = normalizeSearchTerm(managedCategorySearch);
+    let filteredCategories = [...categories];
+
     if (currentManagedCategoryFilter === 'inactive') {
-      return categories.filter((category) => normalizeManagedCategoryStatus(category.status) === 'inactive');
+      filteredCategories = filteredCategories.filter((category) => normalizeManagedCategoryStatus(category.status) === 'inactive');
     }
 
     if (currentManagedCategoryFilter === 'income' || currentManagedCategoryFilter === 'expense') {
-      return categories.filter((category) => category.type === currentManagedCategoryFilter);
+      filteredCategories = filteredCategories.filter((category) => category.type === currentManagedCategoryFilter);
     }
 
-    return [...categories];
+    if (searchTerm) {
+      filteredCategories = filteredCategories.filter((category) => (
+        normalizeSearchTerm(`${category.name || ''} ${category.description || ''}`).includes(searchTerm)
+      ));
+    }
+
+    return filteredCategories;
   }
 
   function setManagedCategoryFilter(filter) {
@@ -3519,32 +3993,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalCategories = categories.length;
     const expenseCategories = categories.filter((category) => category.type === 'expense').length;
     const incomeCategories = categories.filter((category) => category.type === 'income').length;
-    const inactiveCategories = categories.filter((category) => normalizeManagedCategoryStatus(category.status) === 'inactive').length;
-
     return [
       {
         label: 'Total de categorias',
         value: String(totalCategories),
-        note: totalCategories === 1 ? 'Uma categoria pronta para classificar lancamentos.' : 'Categorias disponiveis para organizar o sistema.',
+        note: 'Cadastradas',
         tone: 'navy',
       },
       {
         label: 'Categorias de despesas',
         value: String(expenseCategories),
-        note: 'Estrutura para classificar saidas e custos do dia a dia.',
+        note: 'Para saídas',
         tone: 'red',
       },
       {
         label: 'Categorias de receitas',
         value: String(incomeCategories),
-        note: 'Base para entradas como salario, vendas e investimentos.',
+        note: 'Para entradas',
         tone: 'green',
-      },
-      {
-        label: 'Categorias inativas',
-        value: String(inactiveCategories),
-        note: 'Itens pausados que nao devem aparecer nos novos cadastros.',
-        tone: 'gold',
       },
     ];
   }
@@ -3586,7 +4052,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       categoriesEmptyState.innerHTML = `
         <strong>Nenhuma categoria encontrada.</strong>
-        <span>Ajuste o filtro atual ou crie uma nova categoria para esta visao.</span>
+        <span>Ajuste a busca ou o filtro atual para ver outras categorias.</span>
       `;
       return;
     }
@@ -4244,7 +4710,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function syncRecurrenceDependentViews() {
+    renderKpis();
+    applyFilter(currentFilter);
     renderRecurrencesView();
+    renderTransactionsView();
+    renderCardsView();
+    renderReportsView();
     renderCategoriesView();
   }
 
@@ -4732,14 +5203,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  localWorkspaceStorageKey = createLocalWorkspaceStorageKey(authenticatedUser);
+  const persistedWorkspace = readLocalWorkspace();
+  restoreLocalWorkspace(persistedWorkspace);
+
   try {
     const workspace = await financeDataService.loadWorkspace();
-    categories = workspace.categories;
+    categories = workspace.categories.length > 0 ? workspace.categories : getInitialCategories();
     accounts = workspace.accounts;
+    const remoteTransactionIds = new Set(workspace.transactions.map((transaction) => transaction.id));
+    transactions = [
+      ...workspace.transactions,
+      ...transactions.filter((transaction) => !remoteTransactionIds.has(transaction.id)),
+    ];
+    const remoteRecurrenceIds = new Set(workspace.recurrences.map((recurrence) => recurrence.id));
+    recurrences = [
+      ...workspace.recurrences,
+      ...recurrences.filter((recurrence) => !remoteRecurrenceIds.has(recurrence.id)),
+    ];
   } catch (workspaceError) {
     console.error('Não foi possível carregar os dados financeiros.', workspaceError);
     showDashboardNavFeedback('Não foi possível carregar suas categorias e contas. Atualize a página.');
-    categories = getInitialCategories();
+    restoreLocalWorkspace(persistedWorkspace, { includeRemoteCollections: true });
+    categories = categories.length > 0 ? categories : getInitialCategories();
   }
 
   renderCategoryOptions('', 'receita');
@@ -4767,8 +5253,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderCategoriesView();
   setVisibleDashboardView(currentDashboardView);
   setActiveDashboardNav(currentDashboardView);
+  localWorkspacePersistenceEnabled = true;
+  persistLocalWorkspace();
 
   logoutButton.addEventListener('click', handleLogout);
+  temporaryDataResetButton.addEventListener('click', clearLocalWorkspace);
   profileMenuButton.addEventListener('click', (event) => {
     event.preventDefault();
     toggleProfileDropdown();
@@ -4877,6 +5366,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  categoriesSearchFilter.addEventListener('input', () => {
+    managedCategorySearch = categoriesSearchFilter.value;
+    renderManagedCategoriesGrid();
+  });
+
   reportsPeriodFilter.addEventListener('change', () => {
     reportsViewFilters.period = reportsPeriodFilter.value || 'month';
 
@@ -4955,6 +5449,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       setRecurrenceFormFeedback('', 'info');
     });
   });
+  recurrencePaymentMethodInput.addEventListener('change', updateRecurrencePaymentFields);
+  recurrenceCardInput.addEventListener('change', updateRecurrencePaymentFields);
 
   btnShowCategoryInput.addEventListener('click', () => {
     showCategoryCreatePanel();
@@ -5390,13 +5886,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    const recurrenceFromForm = buildRecurrenceFromForm();
+
+    if (recurrenceFromForm.type === 'despesa' && !recurrenceFromForm.paymentMethod) {
+      setRecurrenceFormFeedback('Escolha a forma de pagamento desta recorrência.', 'error');
+      recurrencePaymentMethodInput.focus();
+      return;
+    }
+
+    if (recurrenceFromForm.paymentMethod === 'credit' && !recurrenceFromForm.cardId) {
+      setRecurrenceFormFeedback('Selecione o cartão responsável por esta recorrência.', 'error');
+      recurrenceCardInput.focus();
+      return;
+    }
+
     if (!recurrenceForm.checkValidity()) {
       setRecurrenceFormFeedback('Preencha descrição, valor, categoria e dia do mês.', 'error');
       recurrenceForm.reportValidity();
       return;
     }
-
-    const recurrenceFromForm = buildRecurrenceFromForm();
 
     if (!Number.isFinite(recurrenceFromForm.amount) || recurrenceFromForm.amount <= 0) {
       setRecurrenceFormFeedback('Informe um valor maior que zero.', 'error');
@@ -5535,6 +6043,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       categoryManagerSubmitButton.disabled = false;
     }
   });
+
+  document.addEventListener('click', scheduleLocalWorkspacePersistence);
+  document.addEventListener('change', scheduleLocalWorkspacePersistence);
+  document.addEventListener('submit', () => {
+    window.setTimeout(scheduleLocalWorkspacePersistence, 350);
+  });
+  window.addEventListener('pagehide', persistLocalWorkspace);
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !profileDropdown.hidden) {

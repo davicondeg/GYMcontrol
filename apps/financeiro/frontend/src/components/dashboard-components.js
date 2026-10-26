@@ -134,6 +134,7 @@
 
   function renderTransactionTableRow(transaction) {
     const meta = getTransactionMeta(transaction.type);
+    const isRecurringOccurrence = transaction.source === 'recurrence';
     const amount = Number(transaction.amount).toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -147,6 +148,12 @@
     const paymentMethodLabel = transaction.paymentMethodLabel
       ? `<span class="transaction-secondary">${escapeHTML(transaction.paymentMethodLabel)}</span>`
       : '';
+    const recurrenceLabel = isRecurringOccurrence
+      ? '<span class="transaction-badge neutral">Recorrência</span>'
+      : '';
+    const actions = isRecurringOccurrence
+      ? '<span class="transaction-secondary">Gerenciada em Recorrências</span>'
+      : renderTransactionActions(transaction);
 
     return `
       <tr data-transaction-id="${escapeHTML(transaction.id)}">
@@ -155,6 +162,7 @@
           <div class="transactions-table__description">
             <strong>${escapeHTML(transaction.description)}${titleSuffix}</strong>
             <div class="transaction-meta">
+              ${recurrenceLabel}
               ${paymentMethodLabel}
               ${installmentLabel}
             </div>
@@ -170,7 +178,7 @@
           <strong class="transaction-amount ${meta.className}">${meta.sign}${escapeHTML(amount)}</strong>
         </td>
         <td data-label="Ações">
-          ${renderTransactionActions(transaction)}
+          ${actions}
         </td>
       </tr>
     `;
@@ -272,6 +280,7 @@
         <td data-label="Descrição">
           <div class="transactions-table__description">
             <strong>${escapeHTML(recurrence.description)}</strong>
+            <span class="transaction-secondary">${escapeHTML(recurrence.paymentLabel || '')}</span>
           </div>
         </td>
         <td data-label="Tipo">
@@ -532,45 +541,39 @@
     });
 
     return `
-      <article class="category-card" data-category-id="${escapeHTML(category.id)}">
-        <div class="category-card__header">
-          <div class="category-card__brand">
+      <article class="category-row">
+        <button class="category-row__main" type="button" data-category-action="view" data-category-id="${escapeHTML(category.id)}">
+          <span class="category-card__brand">
             <span class="category-card__icon" style="--category-color: ${escapeHTML(category.color || '#1A365D')};">
               ${escapeHTML(category.icon || 'CT')}
             </span>
-            <div class="category-card__copy">
-              <h3 class="category-card__title">${escapeHTML(category.name)}</h3>
-              <div class="category-card__meta">
+            <span class="category-card__copy">
+              <strong class="category-card__title">${escapeHTML(category.name)}</strong>
+              <span class="category-card__meta">
                 <span class="transaction-badge ${typeMeta.className}">${escapeHTML(typeMeta.label)}</span>
                 <span class="recurrence-status ${statusMeta.className}">${escapeHTML(statusMeta.label)}</span>
-              </div>
-            </div>
-          </div>
-          <span class="category-card__color" style="--category-color: ${escapeHTML(category.color || '#1A365D')};"></span>
+              </span>
+            </span>
+          </span>
+        </button>
+
+        <div class="category-row__metric">
+          <span>Transações</span>
+          <strong>${escapeHTML(String(category.transactionCount || 0))}</strong>
         </div>
-
-        <p class="transaction-secondary">${escapeHTML(category.description || 'Sem descricao adicional para esta categoria.')}</p>
-
-        <div class="category-card__stats">
-          <div class="category-card__stat">
-            <span>Transacoes vinculadas</span>
-            <strong>${escapeHTML(String(category.transactionCount || 0))}</strong>
-          </div>
-          <div class="category-card__stat">
-            <span>Total do mes</span>
-            <strong>${escapeHTML(monthlyTotal)}</strong>
-          </div>
+        <div class="category-row__metric category-row__metric--amount">
+          <span>Total no mês</span>
+          <strong>${escapeHTML(monthlyTotal)}</strong>
         </div>
-
-        <div class="category-card__footer">
-          <span class="transaction-secondary">${escapeHTML(typeMeta.label)} organizada para filtros, relatorios e dashboard.</span>
-          <div class="card-entry__actions">
+        <details class="category-row__menu">
+          <summary aria-label="Abrir ações de ${escapeHTML(category.name)}" title="Mais ações">•••</summary>
+          <div class="category-row__menu-popover">
             ${renderCategoryActionButton('view', category)}
             ${renderCategoryActionButton('edit', category)}
             ${renderCategoryActionButton('toggle', category)}
             ${renderCategoryActionButton('delete', category)}
           </div>
-        </div>
+        </details>
       </article>
     `;
   }
