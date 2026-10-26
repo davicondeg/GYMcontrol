@@ -43,6 +43,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   let recoverySubscription = null;
   let recoveryUserEmail = '';
 
+  async function exchangeRecoveryCode() {
+    const code = recoverySearchParams.get('code');
+
+    if (!code || !window.supabaseClient) {
+      return;
+    }
+
+    const { error } = await window.supabaseClient.auth.exchangeCodeForSession(code);
+
+    if (error) {
+      console.warn('Não foi possível trocar o código de recuperação por uma sessão.', error);
+    }
+  }
+
   function setRecoveryFeedback(message, type) {
     recoveryFeedback.textContent = message;
     recoveryFeedback.className = 'form-feedback';
@@ -160,6 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     showWaitingState('Abra o link recebido por e-mail para liberar a redefinição.');
   } else {
     showWaitingState('Aguardando a confirmação do link de recuperação...');
+    await exchangeRecoveryCode();
     tryEnableRecoveryForm();
   }
 
