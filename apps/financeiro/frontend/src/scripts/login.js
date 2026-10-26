@@ -307,8 +307,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const { error } = await authService.requestPasswordReset(email);
 
       if (error) {
+        const isEmailRateLimit = error.code === 'over_email_send_rate_limit'
+          || /email rate limit exceeded/i.test(String(error.message || ''));
         setPasswordResetFeedback(
-          error.message || 'Não foi possível enviar o link. Tente novamente.',
+          isEmailRateLimit
+            ? 'Limite temporário de e-mails atingido. Abra o último link recebido ou aguarde até 1 hora para solicitar outro.'
+            : (error.message || 'Não foi possível enviar o link. Tente novamente.'),
           'is-error',
         );
         passwordResetEmailInput.focus();
