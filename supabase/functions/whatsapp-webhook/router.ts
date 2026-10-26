@@ -59,7 +59,7 @@ function parseWaterAmount(text: string) {
 }
 
 function parseMoneyAmount(text: string) {
-  const match = text.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?:\s*(?:reais?|real))?/i);
+  const match = text.match(/(?:r\$\s*)?(\d+(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d.,])(?:\s*(?:reais?|real))?/i);
   if (!match) return null;
   const raw = match[1];
   const normalized = raw.includes(',')
@@ -75,7 +75,7 @@ function parseIncomeDescription(text: string) {
   return text
     .replace(/\b(?:hoje|ontem|anteontem)\b/gi, '')
     .replace(/\b(?:recebi|ganhei|entrou|caiu|registre|registra|adicione|adiciona|anote)\b/gi, '')
-    .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|(?:r\$\s*)?\d+(?:[.,]\d{1,2})?/gi, '')
+    .replace(/(?:r\$\s*)?(?:\d+(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d.,])/gi, '')
     .replace(/\b(?:reais?|real)\b/gi, '')
     .replace(/^\s*(?:de|do|da|por|como)\s+/i, '')
     .replace(/\s+/g, ' ')

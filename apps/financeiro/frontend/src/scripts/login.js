@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const signupConfirmInput = document.getElementById('confirm-password');
   let signupSuccessTimeoutId = null;
   let passwordResetSuccessTimeoutId = null;
-  const TEMPORARY_LOGIN_BYPASS = true;
+  const TEMPORARY_LOGIN_BYPASS = false;
 
   if (
     !authService ||

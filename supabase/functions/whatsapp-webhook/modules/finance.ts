@@ -39,7 +39,7 @@ function formatCurrency(value: number) {
 }
 
 function parseAmount(value: string) {
-  const match = value.match(/(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)/i);
+  const match = value.match(/(?:r\$\s*)?(\d+(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:\.\d{1,2})?)(?![\d.,])/i);
   if (!match) return null;
   const raw = match[1];
   const normalized = raw.includes(',')
@@ -49,6 +49,11 @@ function parseAmount(value: string) {
       : raw;
   const amount = Number(normalized);
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function explicitAmount(value: string) {
+  if (!/\b(valor|pre[cç]o|quantia)\b/i.test(value)) return null;
+  return parseAmount(value);
 }
 
 function explicitDescription(value: string) {
@@ -160,6 +165,34 @@ function recurrenceSummary(state: Record<string, unknown>) {
   return `${type} mensal de ${formatCurrency(Number(state.amount))}, “${state.description}”, categoria ${state.category_name}, todo dia ${state.day_of_month}${payment}`;
 }
 
+async function createRecurrence(context: BotContext, state: Record<string, unknown>): Promise<ModuleResult> {
+  const { data: recurrence, error } = await context.admin
+    .from('finance_recurring_transactions')
+    .insert({
+      user_id: context.userId,
+      account_id: state.account_id ?? null,
+      category_id: state.category_id,
+      type: state.type,
+      description: state.description,
+      amount: state.amount,
+      day_of_month: state.day_of_month,
+      starts_on: context.date,
+      frequency: 'monthly',
+      payment_method: state.type === 'expense' ? state.payment_method : null,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+  if (error) throw error;
+  await finishConversation(context, 'completed');
+  return {
+    reply: `Pronto. Cadastrei a ${recurrenceSummary(state)}.`,
+    action: 'create_finance_recurrence',
+    input: state,
+    result: { recurrence_id: recurrence.id },
+  };
+}
+
 export async function handleActiveFinanceConversation(context: BotContext): Promise<ModuleResult | null> {
   const { data, error } = await context.admin
     .from('bot_conversations')
@@ -228,6 +261,22 @@ export async function handleActiveFinanceConversation(context: BotContext): Prom
       reply: `Certo, alterei a descrição para “${correctedDescription}”. ${promptForStep(conversation.step, state)}`,
       action: 'correct_finance_recurrence',
       input: { field: 'description', value: correctedDescription },
+    };
+  }
+
+  const correctedAmount = explicitAmount(answer);
+  if (correctedAmount && conversation.step !== 'amount') {
+    state.amount = correctedAmount;
+    const shouldConfirmNow = conversation.step === 'confirmation'
+      && /\b(confirm|confirme|confirmar|salve|salvar|cadastre|cadastrar)\b/.test(normalizedAnswer);
+    if (shouldConfirmNow) return createRecurrence(context, state);
+    await saveConversation(context, conversation.step, state);
+    return {
+      reply: conversation.step === 'confirmation'
+        ? `Corrigi o valor. Agora ficou: ${recurrenceSummary(state)}. Posso confirmar?`
+        : `Certo, alterei o valor para ${formatCurrency(correctedAmount)}. ${promptForStep(conversation.step, state)}`,
+      action: 'correct_finance_recurrence',
+      input: { field: 'amount', value: correctedAmount },
     };
   }
 
@@ -339,31 +388,7 @@ export async function handleActiveFinanceConversation(context: BotContext): Prom
     if (!/\b(sim|confirmo|pode confirmar|pode cadastrar|esta certo|ta certo|correto|isso mesmo|ok)\b/.test(normalizedAnswer)) {
       return { reply: 'Responda “sim” para confirmar ou “cancelar” para encerrar.' };
     }
-    const { data: recurrence, error: insertError } = await context.admin
-      .from('finance_recurring_transactions')
-      .insert({
-        user_id: context.userId,
-        account_id: state.account_id ?? null,
-        category_id: state.category_id,
-        type: state.type,
-        description: state.description,
-        amount: state.amount,
-        day_of_month: state.day_of_month,
-        starts_on: context.date,
-        frequency: 'monthly',
-        payment_method: state.type === 'expense' ? state.payment_method : null,
-        is_active: true,
-      })
-      .select('id')
-      .single();
-    if (insertError) throw insertError;
-    await finishConversation(context, 'completed');
-    return {
-      reply: `Pronto. Cadastrei a ${recurrenceSummary(state)}.`,
-      action: 'create_finance_recurrence',
-      input: state,
-      result: { recurrence_id: recurrence.id },
-    };
+    return createRecurrence(context, state);
   }
 
   await finishConversation(context, 'cancelled');

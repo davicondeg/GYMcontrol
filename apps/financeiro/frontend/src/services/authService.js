@@ -274,7 +274,8 @@
 
   async function requireAuth(redirectPath = './login.html') {
     if (hasTemporaryLoginBypass()) {
-      return buildTemporaryLoginUser();
+      clearTemporaryLoginBypass();
+      clearLoginConfirmed();
     }
 
     const { data, error } = await getCurrentUser();
