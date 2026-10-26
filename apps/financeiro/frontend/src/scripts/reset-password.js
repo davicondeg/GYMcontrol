@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function tryEnableRecoveryForm() {
-    if (!recoveryLinkDetected || recoveryActive) {
+    if (recoveryActive) {
       return;
     }
 
@@ -151,15 +151,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       recoveryBootstrapAttempts += 1;
 
-      if (recoveryBootstrapAttempts < 4) {
+      if (recoveryBootstrapAttempts < 10) {
         clearRecoveryBootstrapRetry();
         recoveryBootstrapTimeoutId = window.setTimeout(tryEnableRecoveryForm, 500);
         return;
       }
 
       setRecoveryFeedback(
-        'Não foi possível validar o link de recuperação. Abra o e-mail novamente.',
-        'is-error',
+        recoveryLinkDetected
+          ? 'Não foi possível validar o link de recuperação. Solicite um novo e-mail.'
+          : 'Abra o link recebido por e-mail para liberar a redefinição.',
+        recoveryLinkDetected ? 'is-error' : '',
       );
     } catch (error) {
       console.error('Erro inesperado ao consultar a sessão de recuperação.', error);
@@ -170,13 +172,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  if (!recoveryLinkDetected) {
-    showWaitingState('Abra o link recebido por e-mail para liberar a redefinição.');
-  } else {
-    showWaitingState('Aguardando a confirmação do link de recuperação...');
+  showWaitingState(
+    recoveryLinkDetected
+      ? 'Aguardando a confirmação do link de recuperação...'
+      : 'Verificando a sessão de recuperação...',
+  );
+
+  if (recoveryLinkDetected) {
     await exchangeRecoveryCode();
-    tryEnableRecoveryForm();
   }
+
+  tryEnableRecoveryForm();
 
   recoverySubscription = authService.onAuthStateChange((event, session) => {
     if (event === 'PASSWORD_RECOVERY' && session) {
